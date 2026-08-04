@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NotMeYet · complete iOS flow</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --surface-warm: var(--surface);
+      --fg: #111111;
+      --fg-2: var(--fg);
+      --muted: #6b6b6b;
+      --meta: var(--muted);
+      --border: #e5e5e5;
+      --border-soft: var(--border);
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: "Inter", -apple-system, system-ui, sans-serif;
+      --font-body: "Inter", -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, "JetBrains Mono", monospace;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-base: 16px;
+      --text-lg: 20px;
+      --text-xl: 24px;
+      --text-2xl: 32px;
+      --text-3xl: 48px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.2;
+      --tracking-display: -0.01em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --space-20: 80px;
+      --section-y-desktop: 80px;
+      --section-y-tablet: 48px;
+      --section-y-phone: 32px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+      --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+      --motion-fast: 150ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+      --container-max: 1200px;
+      --container-gutter-desktop: 24px;
+      --container-gutter-tablet: 16px;
+      --container-gutter-phone: 12px;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body { margin: 0; color: var(--fg); background: var(--bg); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .board-head { max-width: 1560px; margin: 0 auto; padding: 56px 28px 20px; display: flex; justify-content: space-between; gap: 24px; align-items: end; }
+    .board-head h1 { margin: 8px 0 0; font: 600 clamp(36px, 5vw, 64px)/1.03 var(--font-display); letter-spacing: var(--tracking-display); }
+    .board-head p { margin: 0; color: var(--muted); max-width: 48ch; font-size: var(--text-base); line-height: var(--leading-body); }
+    .board-kicker, .section-kicker { font: 600 var(--text-xs)/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
+    .flow-section { padding: 40px 28px 72px; border-top: 1px solid var(--border); }
+    .section-head { max-width: 1560px; margin: 0 auto 28px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+    .section-head h2 { margin: 8px 0 0; font: 600 var(--text-2xl)/1.15 var(--font-display); letter-spacing: var(--tracking-display); }
+    .section-head p { margin: 0; color: var(--muted); }
+    .screens { max-width: 1660px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 393px); gap: 32px; justify-content: center; align-items: start; }
+    .screen-wrap { width: 393px; }
+    .screen-label { margin: 0 0 10px 4px; color: var(--muted); font: 600 var(--text-xs)/1 var(--font-mono); letter-spacing: .03em; }
+    .phone { position: relative; width: 393px; height: 852px; overflow: hidden; border: 1px solid color-mix(in oklab, var(--fg), transparent 78%); border-radius: 52px; background: color-mix(in oklab, var(--bg), var(--accent) 2%); box-shadow: 0 22px 60px color-mix(in oklab, var(--fg), transparent 88%); isolation: isolate; }
+    .phone::before { content: ""; position: absolute; z-index: 30; top: 12px; left: 50%; width: 116px; height: 32px; transform: translateX(-50%); border-radius: var(--radius-pill); background: var(--fg); }
+    .status { height: 58px; padding: 18px 25px 0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 650; }
+    .status-icons { display: flex; gap: 6px; align-items: center; }
+    .status-icons span { display: block; width: 14px; height: 8px; border: 1.5px solid currentColor; border-radius: 2px; }
+    .screen { height: calc(100% - 58px); padding: 10px 20px 30px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+    .splash-screen { align-items: center; justify-content: center; padding: 0; }
+    .splash-screen img { width: 176px; height: 176px; object-fit: contain; }
+    .scroll-screen { overflow-y: auto; scrollbar-width: none; padding-bottom: 116px; }
+    .scroll-screen::-webkit-scrollbar { display: none; }
+    .nav { height: 42px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: 10px; }
+    .nav-title { text-align: center; font-size: 15px; font-weight: 650; }
+    .icon-btn { width: 40px; height: 40px; border: 0; border-radius: 50%; background: color-mix(in oklab, var(--surface), transparent 18%); box-shadow: var(--elev-ring); display: grid; place-items: center; font-size: 18px; cursor: pointer; }
+    .icon-btn.plain { background: transparent; box-shadow: none; }
+    .icon-btn.danger { color: var(--danger); }
+    h3 { margin: 0; font: 650 30px/1.08 var(--font-display); letter-spacing: var(--tracking-display); }
+    h4 { margin: 0; font: 650 18px/1.2 var(--font-display); }
+    p { text-wrap: pretty; }
+    .sub { margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .eyebrow { margin: 0 0 8px; color: var(--accent); font: 650 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .progress { height: 4px; border-radius: var(--radius-pill); background: var(--border); overflow: hidden; margin: 4px 0 24px; }
+    .progress span { display: block; height: 100%; width: var(--progress, 40%); background: var(--accent); border-radius: inherit; }
+    .primary, .secondary, .apple { width: 100%; min-height: 52px; border-radius: 15px; font-weight: 650; border: 0; cursor: pointer; transition: transform var(--motion-fast), background var(--motion-fast); }
+    .primary { color: var(--accent-on); background: var(--accent); box-shadow: 0 8px 18px color-mix(in oklab, var(--accent), transparent 76%); }
+    .primary:hover { background: var(--accent-hover); }
+    .primary:active, .secondary:active, .apple:active { transform: scale(.985); }
+    .primary:disabled { color: var(--muted); background: var(--border); box-shadow: none; cursor: not-allowed; }
+    .secondary { color: var(--fg); background: var(--surface); box-shadow: var(--elev-ring); }
+    .apple { color: var(--surface); background: var(--fg); font-size: 16px; }
+    .apple span { margin-right: 8px; font-size: 21px; }
+    .push { margin-top: auto; }
+    .button-stack { display: grid; gap: 10px; }
+    .micro { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; text-align: center; }
+    .micro a { color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+    .skip-link { min-height: 44px; margin: 2px auto 0; padding: 0 12px; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+    .skip-link:hover { color: var(--fg); }
+    .skip-link.nav-skip { margin: 0; padding-inline: 0; justify-self: end; text-decoration: none; }
+    .phase-label { margin: 2px 0 22px; color: var(--muted); font: 650 11px/1.2 var(--font-mono); letter-spacing: .03em; }
+    .phase-label b { color: var(--accent); }
+    .choices { display: grid; gap: 9px; margin-top: 22px; }
+    .choice { width: 100%; min-height: 54px; padding: 12px 14px; display: flex; gap: 11px; align-items: center; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); text-align: left; font-size: 13px; font-weight: 600; line-height: 1.3; transition: border-color var(--motion-fast), background var(--motion-fast), transform var(--motion-fast); }
+    .choice:active { transform: scale(.985); }
+    .choice::before { content: ""; flex: 0 0 auto; width: 20px; height: 20px; border: 1.5px solid var(--muted); border-radius: 50%; }
+    .choice.multi::before { border-radius: 6px; }
+    .choice.selected { border-color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 94%); }
+    .choice.selected::before { border: 6px solid var(--accent); background: var(--surface); }
+    .choice.multi.selected::before { content: "✓"; display: grid; place-items: center; border: 0; background: var(--accent); color: var(--accent-on); font-size: 13px; }
+    .choice-copy b, .choice-copy small { display: block; }
+    .choice-copy small { margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 450; }
+    .intensity-grid { display: grid; gap: 11px; margin-top: 28px; }
+    .intensity-grid .choice { min-height: 92px; align-items: flex-start; }
+    .preference-block { margin-top: 22px; }
+    .preference-label { display: block; margin-bottom: 9px; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .compact-choices { display: grid; gap: 8px; }
+    .compact-choices .choice { min-height: 46px; padding-block: 9px; }
+    .lengths { display: flex; flex-wrap: wrap; gap: 8px; }
+    .lengths .chip { min-height: 40px; }
+    .privacy-card { margin-top: 15px; padding: 14px; background: color-mix(in oklab, var(--accent), var(--surface) 96%); }
+    .privacy-card h4 { font-size: 15px; }
+    .privacy-card p { margin: 6px 0 8px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .privacy-links { display: flex; gap: 14px; color: var(--accent); font-size: 11px; font-weight: 650; }
+    .capture-state { position: absolute; z-index: 4; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 7px 12px; border-radius: var(--radius-pill); color: var(--success); background: color-mix(in oklab, var(--surface), transparent 8%); backdrop-filter: blur(12px); font-size: 12px; font-weight: 700; }
+    .shutter { width: 70px; height: 70px; margin: 18px auto 8px; border: 5px solid var(--surface); border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 2px var(--fg), inset 0 0 0 3px var(--border); }
+    .auth-options { display: grid; gap: 10px; margin-top: 28px; }
+    .auth-options .secondary { min-height: 50px; }
+    .auth-mark { width: 72px; height: 72px; margin: 22px auto 30px; display: grid; place-items: center; border-radius: 24px; color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 90%); font-size: 30px; font-weight: 700; }
+    .error-banner { padding: 13px 14px; border: 1px solid color-mix(in oklab, var(--danger), transparent 65%); border-radius: 14px; color: var(--danger); background: color-mix(in oklab, var(--danger), transparent 94%); font-size: 12px; line-height: 1.4; }
+    .error-banner b { display: block; margin-bottom: 2px; }
+    .result-feature { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+    .result-feature .card { min-height: 120px; }
+    .result-feature small { color: var(--muted); font-size: 11px; }
+    .result-feature b { display: block; margin: 8px 0 5px; font-size: 22px; }
+    .result-feature p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+    .bridge { padding: 15px; border-radius: 15px; background: color-mix(in oklab, var(--accent), transparent 93%); font-size: 12px; line-height: 1.4; }
+    .nmy-watermark { position: absolute; z-index: 4; right: 14px; bottom: 14px; padding: 5px 8px; border-radius: var(--radius-pill); color: var(--fg); background: color-mix(in oklab, var(--surface), transparent 12%); backdrop-filter: blur(10px); font: 700 10px var(--font-mono); }
+    .offer-list { display: grid; gap: 8px; margin: 13px 0; }
+    .offer { position: relative; width: 100%; padding: 11px 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); text-align: left; font-size: 11px; }
+    .offer.selected { border-color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 95%); }
+    .offer b { font-size: 13px; }
+    .offer span { color: var(--muted); }
+    .offer strong { grid-row: 1 / 3; grid-column: 2; align-self: center; font: 700 13px var(--font-mono); }
+    .offer em { position: absolute; right: 9px; top: -8px; padding: 3px 7px; border-radius: var(--radius-pill); color: var(--accent-on); background: var(--accent); font: normal 9px var(--font-mono); }
+    .disclosure { max-height: 64px; overflow-y: auto; margin: 8px 0; color: var(--muted); font-size: 9px; line-height: 1.35; }
+    .state-heading { max-width: 1560px; margin: 58px auto 22px; padding-top: 30px; border-top: 1px solid var(--border); }
+    .state-heading h3 { font-size: 24px; }
+    .validation-list { display: grid; gap: 9px; margin-top: 18px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+    .portrait { position: relative; overflow: hidden; border-radius: 22px; background: var(--border); }
+    .portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .portrait.front img { object-position: 50% 34%; }
+    .portrait.angle img { object-position: 68% 34%; transform: scale(1.08); }
+    .portrait.crop img { object-position: 50% 25%; transform: scale(1.17); }
+    .cinematic-phone { color: var(--surface); background: var(--fg); }
+    .cinematic-phone::after { content: ""; position: absolute; z-index: 1; inset: 0; background: color-mix(in oklab, var(--fg), transparent 34%); pointer-events: none; }
+    .cinematic-media { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%; }
+    .cinematic-phone .status { position: relative; z-index: 2; color: var(--surface); }
+    .cinematic-screen { z-index: 2; justify-content: flex-end; }
+    .cinematic-copy { margin-bottom: var(--space-6); }
+    .cinematic-screen .eyebrow, .cinematic-screen h3 { color: var(--surface); }
+    .cinematic-screen .sub { color: color-mix(in oklab, var(--surface), transparent 12%); }
+    .age-wheel { margin: 32px 0; padding: 80px 0; position: relative; text-align: center; overflow: hidden; mask-image: linear-gradient(transparent, black 34%, black 66%, transparent); }
+    .age-wheel::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 56px; transform: translateY(-50%); background: var(--surface); border-radius: 14px; box-shadow: var(--elev-ring); }
+    .ages { position: relative; display: grid; gap: 16px; color: var(--muted); font: 500 20px/1 var(--font-display); }
+    .ages strong { color: var(--fg); font-size: 30px; }
+    .camera-box { height: 395px; border-radius: 28px; background: color-mix(in oklab, var(--fg), var(--bg) 94%); position: relative; overflow: hidden; display: grid; place-items: center; margin-top: 8px; }
+    .camera-box .portrait { position: absolute; inset: 0; border-radius: 0; opacity: .9; }
+    .face-guide { position: relative; z-index: 2; width: 210px; height: 285px; border: 2px dashed var(--surface); border-radius: 48%; box-shadow: 0 0 0 999px color-mix(in oklab, var(--fg), transparent 62%); }
+    .angle-guide { transform: perspective(500px) rotateY(-16deg); }
+    .tips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 14px 2px 16px; color: var(--muted); font-size: 12px; }
+    .tips span::before { content: "✓"; margin-right: 5px; color: var(--success); font-weight: 750; }
+    .analysis-hero { height: 302px; margin-bottom: 14px; }
+    .landmarks { position: absolute; inset: 12% 19% 8%; border: 1px solid color-mix(in oklab, var(--accent), transparent 20%); border-radius: 46%; pointer-events: none; }
+    .landmarks::before, .landmarks::after { content: ""; position: absolute; left: -16%; right: -16%; top: 37%; border-top: 1px solid var(--accent); }
+    .landmarks::after { top: 68%; }
+    .result-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .metric { padding: 13px; }
+    .metric b { display: block; font-size: 18px; margin-top: 4px; }
+    .metric small { color: var(--muted); font-size: 11px; }
+    .metric-line { height: 5px; border-radius: var(--radius-pill); background: var(--border); margin-top: 11px; overflow: hidden; }
+    .metric-line span { display: block; height: 100%; width: var(--value, 70%); background: var(--accent); }
+    .locked-stack { display: grid; gap: 8px; }
+    .locked { position: relative; min-height: 67px; overflow: hidden; }
+    .locked .ghost-chart { display: flex; gap: 5px; align-items: end; height: 32px; filter: blur(4px); opacity: .6; }
+    .ghost-chart i { flex: 1; height: var(--h); background: var(--muted); border-radius: 4px 4px 0 0; }
+    .lock { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; backdrop-filter: blur(5px); background: color-mix(in oklab, var(--surface), transparent 52%); }
+    .consent { display: flex; gap: 12px; align-items: flex-start; margin: 14px 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+    .consent input { appearance: none; flex: 0 0 auto; width: 24px; height: 24px; border: 1.5px solid var(--muted); border-radius: 7px; margin: 0; display: grid; place-items: center; }
+    .consent input:checked { background: var(--accent); border-color: var(--accent); }
+    .consent input:checked::after { content: "✓"; color: var(--accent-on); font-weight: 800; }
+    .consent label { font-size: 12px; line-height: 1.4; }
+    .consent a { display: inline-block; margin-top: 5px; color: var(--accent); text-decoration: none; }
+    .loader-wrap { height: 340px; display: grid; place-items: center; position: relative; }
+    .loader-ring { position: absolute; width: 236px; height: 236px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 2.2s linear infinite; }
+    .loader-wrap .portrait { width: 176px; height: 226px; border-radius: 88px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .stages { display: grid; gap: 9px; margin-top: 24px; }
+    .stage { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; padding: 11px 13px; border-radius: 13px; }
+    .stage.current { color: var(--fg); background: var(--surface); box-shadow: var(--elev-ring); }
+    .stage-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .stage.current .stage-dot { background: var(--accent); box-shadow: 0 0 0 5px color-mix(in oklab, var(--accent), transparent 86%); }
+    .compare { position: relative; height: 448px; border-radius: 27px; overflow: hidden; background: var(--border); }
+    .compare .after, .compare .before { position: absolute; inset: 0; }
+    .compare .after img, .compare .before img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 27%; }
+    .compare .before { width: var(--split, 48%); overflow: hidden; border-right: 2px solid var(--surface); }
+    .compare .before img { width: 353px; max-width: none; filter: saturate(.84); }
+    .compare::after { content: "↔"; position: absolute; top: 52%; left: var(--split, 48%); width: 38px; height: 38px; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; background: var(--surface); box-shadow: var(--elev-raised); font-weight: 700; }
+    .compare-badges { position: absolute; z-index: 3; inset: 14px 14px auto; display: flex; justify-content: space-between; pointer-events: none; }
+    .glass-label { padding: 6px 10px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--surface), transparent 14%); backdrop-filter: blur(12px); font-size: 11px; font-weight: 650; box-shadow: var(--elev-raised); }
+    .style-copy { padding: 14px 2px 12px; }
+    .style-copy p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .paywall { padding-top: 4px; }
+    .paywall-preview { display: grid; grid-template-columns: 1.35fr .65fr; gap: 10px; height: 178px; margin: 14px 0; }
+    .paywall-preview .portrait { height: 100%; }
+    .blur-card { height: 100%; filter: blur(3px); display: grid; gap: 7px; align-content: center; }
+    .blur-card i { height: 9px; border-radius: var(--radius-pill); background: var(--muted); opacity: .45; }
+    .benefits { display: grid; gap: 10px; margin: 12px 0 16px; font-size: 13px; }
+    .benefits div { display: flex; gap: 10px; align-items: center; }
+    .benefits i { font-style: normal; color: var(--success); font-weight: 800; }
+    .plans { display: grid; grid-template-columns: 1.3fr 1fr; gap: 9px; margin-bottom: 12px; }
+    .plan { position: relative; border: 1px solid var(--border); border-radius: 15px; padding: 12px; background: var(--surface); font-size: 12px; }
+    .plan.selected { border-color: var(--accent); }
+    .plan b { display: block; font-size: 14px; }
+    .plan em { position: absolute; top: -9px; right: 8px; padding: 3px 7px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-on); font: normal 9px var(--font-mono); }
+    .toast { position: absolute; z-index: 50; left: 22px; right: 22px; bottom: 28px; padding: 13px 16px; border-radius: 16px; background: var(--fg); color: var(--surface); text-align: center; font-size: 13px; box-shadow: var(--elev-raised); animation: toast-in var(--motion-base) var(--ease-standard); }
+    @keyframes toast-in { from { transform: translateY(18px); opacity: 0; } }
+    .large-title { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 18px; }
+    .large-title h3 { font-size: 34px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; box-shadow: var(--elev-ring); }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .featured { display: grid; grid-template-columns: 132px 1fr; gap: 14px; margin-bottom: 14px; }
+    .featured .portrait { height: 156px; }
+    .featured-copy { display: flex; flex-direction: column; justify-content: center; }
+    .status-pill { width: fit-content; padding: 4px 8px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--success), transparent 88%); color: var(--success); font-size: 10px; font-weight: 700; }
+    .session-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .session-card { padding: 0; overflow: hidden; }
+    .session-card .portrait { height: 145px; border-radius: 0; }
+    .session-card .meta-copy { padding: 11px; }
+    .meta-copy b { display: block; font-size: 13px; }
+    .meta-copy small { color: var(--muted); font-size: 10px; }
+    .floating-add { position: absolute; z-index: 10; right: 20px; bottom: 99px; width: 52px; height: 52px; border: 0; border-radius: 50%; color: var(--accent-on); background: var(--accent); box-shadow: 0 8px 24px color-mix(in oklab, var(--accent), transparent 68%); font-size: 26px; }
+    .tabbar { position: absolute; z-index: 20; left: 18px; right: 18px; bottom: 17px; height: 68px; padding: 8px 14px; display: grid; grid-template-columns: repeat(3, 1fr); background: color-mix(in oklab, var(--surface), transparent 16%); border: 1px solid color-mix(in oklab, var(--surface), transparent 24%); backdrop-filter: blur(22px) saturate(130%); border-radius: 25px; box-shadow: 0 10px 28px color-mix(in oklab, var(--fg), transparent 86%); }
+    .tab { border: 0; background: transparent; color: var(--muted); font-size: 10px; display: grid; place-items: center; align-content: center; gap: 3px; border-radius: 17px; }
+    .tab span { font-size: 20px; line-height: 1; }
+    .tab.selected { color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 90%); font-weight: 700; }
+    .annotation-toggle { display: flex; gap: 7px; align-items: center; font-size: 12px; }
+    .switch { width: 43px; height: 25px; padding: 2px; border: 0; border-radius: var(--radius-pill); background: var(--accent); }
+    .switch::after { content: ""; display: block; width: 21px; height: 21px; border-radius: 50%; background: var(--surface); margin-left: 18px; transition: margin var(--motion-base); }
+    .switch.off { background: var(--border); }
+    .switch.off::after { margin-left: 0; }
+    .measurements { display: grid; gap: 10px; margin-top: 12px; }
+    .measurement { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; }
+    .diagram { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border); position: relative; }
+    .diagram::before, .diagram::after { content: ""; position: absolute; background: var(--muted); opacity: .6; }
+    .diagram::before { width: 24px; height: 1px; left: 8px; top: 20px; }
+    .diagram::after { width: 1px; height: 24px; left: 20px; top: 8px; }
+    .measurement b { display: block; font-size: 12px; }
+    .measurement small { color: var(--muted); font-size: 10px; }
+    .measurement .num { font: 700 13px var(--font-mono); }
+    .creation { position: relative; overflow: hidden; padding: 18px; margin-bottom: 18px; background: color-mix(in oklab, var(--accent), var(--surface) 94%); }
+    .thumb-row { display: flex; margin: 14px 0; }
+    .thumb-row .portrait { width: 68px; height: 78px; margin-right: -10px; border: 3px solid var(--surface); }
+    .filters { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px 14px; padding: 0 20px; }
+    .chip { min-height: 34px; padding: 0 13px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); white-space: nowrap; font-size: 12px; }
+    .chip.selected { color: var(--accent-on); background: var(--accent); border-color: var(--accent); }
+    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .gallery-item { position: relative; }
+    .gallery-item .portrait { height: 222px; }
+    .gallery-item b { display: block; margin-top: 7px; font-size: 12px; }
+    .gallery-item small { color: var(--muted); font-size: 10px; }
+    .heart { position: absolute; z-index: 2; top: 9px; right: 9px; width: 31px; height: 31px; border: 0; border-radius: 50%; background: color-mix(in oklab, var(--surface), transparent 12%); backdrop-filter: blur(8px); }
+    .selfie-chip { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; padding: 9px 12px; border-radius: 15px; background: var(--surface); box-shadow: var(--elev-ring); font-size: 12px; }
+    .selfie-chip .portrait { width: 36px; height: 36px; border-radius: 50%; }
+    .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+    .style-option { border: 0; background: transparent; padding: 0; text-align: left; }
+    .style-option .portrait { height: 122px; border-radius: 15px; border: 2px solid transparent; }
+    .style-option.selected .portrait { border-color: var(--accent); }
+    .style-option span { display: block; margin-top: 5px; font-size: 10px; }
+    .sticky-cta { position: absolute; z-index: 15; left: 20px; right: 20px; bottom: 24px; }
+    .detail-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 12px 0; }
+    .action { min-height: 58px; border: 0; border-radius: 14px; background: var(--surface); box-shadow: var(--elev-ring); font-size: 10px; display: grid; place-items: center; gap: 3px; }
+    .action span { font-size: 18px; }
+    .related { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 9px; }
+    .related .portrait { height: 95px; border-radius: 13px; }
+    .settings-group { margin-bottom: 17px; }
+    .settings-group > span { display: block; margin: 0 0 7px 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    .settings-list { background: var(--surface); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--elev-ring); }
+    .settings-row { min-height: 49px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; width: 100%; text-align: left; font-size: 13px; }
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row small { color: var(--muted); }
+    .settings-row.destructive { color: var(--danger); }
+    dialog { width: 337px; border: 0; border-radius: 22px; padding: 0; color: var(--fg); background: var(--surface); box-shadow: 0 24px 80px color-mix(in oklab, var(--fg), transparent 68%); }
+    dialog::backdrop { background: color-mix(in oklab, var(--fg), transparent 58%); backdrop-filter: blur(4px); }
+    .dialog-copy { padding: 22px; text-align: center; }
+    .dialog-copy h4 { margin-bottom: 8px; }
+    .dialog-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
+    .dialog-actions button { min-height: 50px; border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--accent); }
+    .dialog-actions button:last-child { border-right: 0; color: var(--danger); font-weight: 700; }
+    .hidden { display: none !important; }
+    @media (max-width: 1710px) { .screens { grid-template-columns: repeat(3, 393px); } }
+    @media (max-width: 1290px) { .screens { grid-template-columns: repeat(2, 393px); } }
+    @media (max-width: 860px) {
+      .board-head, .section-head { align-items: flex-start; flex-direction: column; }
+      .screens { display: flex; justify-content: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 18px 22px; margin-inline: -28px; }
+      .screen-wrap { flex: 0 0 393px; scroll-snap-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="board-head" data-od-id="board-header">
+    <div><span class="board-kicker">NotMeYet · NMY · iOS concept</span><h1>See a version of you<br>you haven't tried yet.</h1></div>
+    <p>A privacy-first facial harmony and hairstyle transformation flow for young men. Twelve onboarding moments plus a returning-user sign-in route, followed by the core app.</p>
+  </header>
+
+  <main>
+    <section class="flow-section" data-od-id="onboarding-flow">
+      <div class="section-head"><div><span class="section-kicker">01 · First value</span><h2>Onboarding flow</h2></div><p>13 screens · welcome, goals, harmony, first look, returning sign-in</p></div>
+      <div class="screens">
+        <article class="screen-wrap" data-od-id="onboarding-01-welcome">
+          <p class="screen-label">01 · Welcome / transformation hook</p>
+          <div class="phone cinematic-phone"><img class="cinematic-media" src="assets/notmeyet-user.jpg" alt="Looping hairstyle transformation preview frame"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen cinematic-screen">
+            <div class="cinematic-copy"><p class="eyebrow">NotMeYet</p><h3 data-od-id="welcome-heading">See who you could be.</h3><p class="sub">See how your features work together and preview a hairstyle chosen for your face.</p></div>
+            <div class="button-stack"><button class="primary" data-action="advance" data-od-id="welcome-primary-cta">Discover my next look</button><button class="secondary" data-od-id="welcome-sign-in-cta">Already have an account? Sign in</button></div>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-02-primary-goal">
+          <p class="screen-label">02 · Primary goal · no selection</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen" style="padding-bottom:92px">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span></span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="1" style="--progress:10%"><span></span></div>
+            <h3>What brought you here today?</h3><p class="sub">Choose the answer that feels closest. You can explore everything later.</p>
+            <div class="choices" data-choice-group="single"><button class="choice">Find a haircut that actually suits me</button><button class="choice">Look sharper and more put-together</button><button class="choice">Break out of my current style</button><button class="choice">Feel more confident about my appearance</button><button class="choice">Avoid regretting my next haircut</button><button class="choice">Just see what else could work</button></div>
+            <button class="primary push choice-continue">Build my preview</button>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-03-pain-points">
+          <p class="screen-label">03 · Pain points · multi-select</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen" style="padding-bottom:92px">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span></span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="2" style="--progress:20%"><span></span></div>
+            <h3>What makes changing your look difficult?</h3><p class="sub">Pick as many as you want.</p>
+            <div class="choices" data-choice-group="multi"><button class="choice multi selected">I don't know what suits my face</button><button class="choice multi selected">Haircuts look different on me than on the model</button><button class="choice multi">I can't picture a new style before committing</button><button class="choice multi">I don't know what to ask my barber for</button><button class="choice multi">I've regretted a haircut before</button><button class="choice multi">I keep choosing the same safe style</button></div>
+            <button class="primary push">That sounds like me</button>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-04-change-intensity">
+          <p class="screen-label">04 · Change intensity · selected</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span></span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="3" style="--progress:30%"><span></span></div>
+            <h3>How different should your next look feel?</h3>
+            <div class="intensity-grid" data-choice-group="single"><button class="choice"><span class="choice-copy"><b>Subtle</b><small>A cleaner version of my current look</small></span></button><button class="choice selected"><span class="choice-copy"><b>Noticeable</b><small>Clearly different, but still easy to wear</small></span></button><button class="choice"><span class="choice-copy"><b>Bold</b><small>Show me something I wouldn't normally try</small></span></button></div>
+            <button class="primary push">Choose my direction</button>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-05-authentication">
+          <p class="screen-label">05 · Account creation</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span></span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="4" style="--progress:40%"><span></span></div>
+            <div class="auth-mark">N</div><div style="text-align:center"><h3>Continue to your free harmony check</h3><p class="sub">Sign in or create an account to get one free harmony check and one personalized hairstyle look.</p></div>
+            <div class="auth-options"><button class="apple"><span>●</span>Continue with Apple</button><button class="secondary">Continue with Google</button></div>
+            <p class="micro">Already have an account? <a href="#">Sign in</a></p><p class="micro push">By continuing, you agree to the <a href="#">Terms of Use</a> and acknowledge the <a href="#">Privacy Policy</a>.</p>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-06-photo-preparation">
+          <p class="screen-label">06 · Photo preparation + privacy</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen" style="padding-bottom:92px">
+            <div class="nav" style="grid-template-columns:44px 1fr auto"><span></span><span></span><button class="skip-link nav-skip">Skip harmony check</button></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="5" style="--progress:50%"><span></span></div>
+            <h3>Let's find what works with your features.</h3><p class="sub">Start with a clear, front-facing photo. Better input creates a more realistic preview.</p>
+            <div class="camera-box" style="height:320px"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Front-facing photo example"></div><div class="face-guide" style="width:184px;height:244px"></div></div>
+            <div class="tips"><span>Face camera directly</span><span>Use even lighting</span><span>Hair away from face</span><span>No glasses or hats</span><span>Neutral expression</span><span>One face only</span></div>
+            <div class="button-stack push"><button class="primary" data-action="camera">Take my front photo</button><button class="secondary" data-action="photos">Choose from library</button></div>
+            <p class="micro">By continuing, you agree to the <a href="#">Terms of Use</a> and acknowledge the <a href="#">Privacy Policy</a>.</p>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-07-front-capture">
+          <p class="screen-label">07 · Front capture · valid review</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span class="nav-title">Front photo</span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="6" style="--progress:60%"><span></span></div>
+            <div class="camera-box" style="height:470px"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Captured front photo ready for review"></div><div class="face-guide"></div><span class="capture-state">Ready</span></div>
+            <h4 style="margin-top:18px">Use this photo?</h4><p class="sub">Your face is clear, centered, and evenly lit.</p>
+            <div class="button-stack push"><button class="primary">Use this photo</button><button class="secondary">Retake</button></div>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-08-harmony-processing">
+          <p class="screen-label">08 · Finding facial harmony</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="7" style="--progress:70%"><span></span></div><div class="loader-wrap" style="height:300px"><div class="loader-ring"></div><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Photo used to find facial harmony"></div></div>
+            <div style="text-align:center"><h3>Finding your natural harmony…</h3><p class="sub">We're noticing how your features work together to surface hairstyles that feel balanced.</p></div>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-09-harmony-snapshot">
+          <p class="screen-label">09 · Harmony snapshot</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="nav" style="grid-template-columns:44px 1fr auto"><span></span><span></span><button class="skip-link nav-skip">Skip look</button></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="8" style="--progress:80%"><span></span></div>
+            <h3>Here's what works in harmony</h3><div class="portrait analysis-hero front" style="height:260px;margin-top:16px"><img src="assets/notmeyet-user.jpg" alt="Facial harmony snapshot"><div class="landmarks"></div></div>
+            <div class="result-feature"><div class="card"><small>Your face shape</small><b>Oval</b><p>Balanced proportions with slightly more length than width.</p></div><div class="card"><small>Overall harmony</small><b style="font-size:18px">Naturally balanced</b><p>Small left-to-right differences are normal.</p></div></div>
+            <button class="primary push">Show me a matching hairstyle</button><p class="micro">Estimates for inspiration, not a medical assessment.</p>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-10-generation">
+          <p class="screen-label">10 · Personalized generation</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="9" style="--progress:90%"><span></span></div><div class="loader-wrap" style="height:290px"><div class="loader-ring"></div><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Personalized hairstyle generation in progress"></div></div>
+            <div style="text-align:center"><h3>Creating your first NotMeYet look…</h3><p class="sub">Same face. New possibility.</p></div>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-11-first-result">
+          <p class="screen-label">11 · First transformation / viral moment</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen" style="padding-bottom:34px">
+            <div class="nav"><span></span><span class="nav-title">Your first look</span><span></span></div><div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="10" style="--progress:100%"><span></span></div><h3>Not you yet—but should it be?</h3>
+            <div class="compare" data-compare style="height:380px;--split:46%;margin-top:16px"><div class="after crop"><img src="assets/notmeyet-user.jpg" alt="Generated textured crop hairstyle"></div><div class="before front"><img src="assets/notmeyet-user.jpg" alt="Original front photo"></div><div class="compare-badges"><span class="glass-label">Before</span><span class="glass-label">After</span></div><span class="nmy-watermark">NMY</span></div>
+            <input class="compare-slider" type="range" min="12" max="88" value="46" aria-label="Compare the before and after images" style="width:100%;margin:8px 0"><div class="style-copy"><h4>Textured crop</h4><p><b>Why this was chosen</b><br>The added texture creates width around the upper face, while shorter sides keep the overall shape balanced.</p></div>
+            <button class="primary">Try more</button>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-12-paywall">
+          <p class="screen-label">12 · More versions / paywall</p>
+          <div class="phone" id="paywall-phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen paywall scroll-screen" style="padding-bottom:32px">
+            <div class="nav"><span></span><span></span><button id="paywall-close" class="icon-btn" aria-label="Close paywall">×</button></div>
+            <h3>Meet more versions of you</h3><p class="sub">Explore hairstyles ranked for your features and compare favorites before committing.</p>
+            <div class="benefits"><div><i>✓</i>Explore all 44 launch hairstyles</div><div><i>✓</i>See styles ranked for your features</div><div><i>✓</i>Generate, save, and compare previews</div></div>
+            <div class="offer-list" data-offers><button class="offer"><b>[X] previews</b><span>One-time purchase · never expires</span><strong>[PRICE]</strong></button><button class="offer selected"><em>Best value</em><b>[X] previews</b><span>Better price per preview · never expires</span><strong>[PRICE]</strong></button><button class="offer"><b>[X] new credits every week</b><span>Renews weekly · unused credits expire</span><strong>[PRICE] / week</strong></button></div>
+            <p class="disclosure">Failed generations automatically refund the credit. Purchased pack credits do not expire and remain after subscription cancellation. A subscription renews automatically unless canceled. Exact renewal price, period, and credit quantities are unresolved.</p>
+            <button id="offer-cta" class="primary">Continue with larger credit pack</button><button class="secondary" style="margin-top:9px">View all options</button><p class="micro"><a href="#">Restore purchases</a> · <a href="#">Subscription details</a><br><a href="#">Terms of Use</a> · <a href="#">Privacy Policy</a> · <a href="#">Not now</a></p>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="onboarding-13-sign-in">
+          <p class="screen-label">13 · Sign in · returning user</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span></span><span></span></div>
+            <div class="auth-mark">N</div><div style="text-align:center"><h3>Welcome back</h3><p class="sub">Sign in to return to your harmony profile, saved looks, and previous sessions.</p></div>
+            <div class="auth-options"><button class="apple"><span>●</span>Continue with Apple</button><button class="secondary">Continue with Google</button></div>
+            <p class="micro push">New to NotMeYet? <a href="#">Start onboarding</a></p>
+          </div></div>
+        </article>
+      </div>
+
+    </section>
+
+    <section class="flow-section" data-od-id="main-application">
+      <div class="section-head"><div><span class="section-kicker">02 · Return and explore</span><h2>Main application</h2></div><p>6 screens · harmony, looks, and data control</p></div>
+      <div class="screens">
+        <article class="screen-wrap" data-od-id="screen-harmony-library">
+          <p class="screen-label">Main 01 · Harmony library</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen">
+            <div class="large-title"><h3>Harmony</h3><div class="avatar"><img src="assets/notmeyet-user.jpg" alt="User profile"></div></div>
+            <div class="card featured"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Latest face harmony reading"></div><div class="featured-copy"><span class="status-pill">Full harmony</span><h4 style="margin-top:9px">Oval</h4><p class="sub">Today · 12 measurements</p><button class="secondary" style="margin-top:12px;min-height:38px">View harmony</button></div></div>
+            <h4 style="margin-bottom:10px">Previous sessions</h4><div class="session-grid"><div class="card session-card"><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Harmony session from June 12"></div><div class="meta-copy"><b>June 12</b><small>Oval · complete</small></div></div><div class="card session-card"><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Harmony session from May 28"></div><div class="meta-copy"><b>May 28</b><small>Oval · limited</small></div></div></div>
+            <button class="floating-add" aria-label="New harmony session">+</button>
+          </div><nav class="tabbar"><button class="tab selected"><span>⌁</span>Harmony</button><button class="tab"><span>◫</span>Looks</button><button class="tab"><span>⚙</span>Settings</button></nav></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="screen-harmony-detail">
+          <p class="screen-label">Main 02 · Full harmony</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span class="nav-title">Face harmony</span><button class="icon-btn plain" aria-label="Share">↗</button></div>
+            <div class="portrait analysis-hero front"><img src="assets/notmeyet-user.jpg" alt="Face with measurement guides"><div class="landmarks" id="detail-landmarks"></div></div>
+            <div class="card row-between" style="display:flex;justify-content:space-between;align-items:center"><div><small style="color:var(--muted)">Face shape</small><h4>Oval</h4></div><div class="annotation-toggle">Guides <button id="annotation-switch" class="switch" aria-label="Toggle measurement guides"></button></div></div>
+            <div class="measurements"><div class="card measurement"><div class="diagram"></div><div><b>Nose width to eye width</b><small>Within a common range</small></div><span class="num">0.91</span></div><div class="card measurement"><div class="diagram"></div><div><b>Width-to-height ratio</b><small>Balanced</small></div><span class="num">1.37</span></div><div class="card measurement"><div class="diagram"></div><div><b>Upper, middle, lower thirds</b><small>Slightly longer middle third</small></div><span class="num">31·35·34</span></div><div class="card measurement"><div class="diagram"></div><div><b>Jaw width</b><small>Slightly narrower</small></div><span class="num">84%</span></div><div class="card measurement"><div class="diagram"></div><div><b>Eye spacing</b><small>Within a common range</small></div><span class="num">1.02</span></div><div class="card measurement"><div class="diagram"></div><div><b>Visual symmetry</b><small>Naturally balanced</small></div><span class="num">86%</span></div></div>
+            <p class="micro" style="text-align:left">This describes visual proportions, not a medical diagnosis or attractiveness rating.</p>
+          </div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="screen-looks-home">
+          <p class="screen-label">Main 03 · Looks</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen">
+            <div class="large-title"><h3>Looks</h3><button class="icon-btn plain" aria-label="Search">⌕</button></div>
+            <div class="card creation"><h4>Find your next hairstyle</h4><p class="sub">Preview 44 hairstyles using your own face.</p><div class="thumb-row"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Short hairstyle"></div><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Textured hairstyle"></div><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Classic hairstyle"></div></div><button class="primary">Create look</button></div>
+            <div class="filters"><button class="chip selected">All</button><button class="chip">Short</button><button class="chip">Medium</button><button class="chip">Long</button><button class="chip">Curly</button></div>
+            <div class="gallery"><div class="gallery-item"><button class="heart" aria-label="Add to favorites">♡</button><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Textured crop"></div><b>Textured crop</b><small>Today · before/after</small></div><div class="gallery-item"><button class="heart" aria-label="Add to favorites">♡</button><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Soft quiff"></div><b>Soft quiff</b><small>July 18 · before/after</small></div><div class="gallery-item"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Classic taper"></div><b>Classic taper</b><small>July 12 · before/after</small></div><div class="gallery-item"><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Natural fringe"></div><b>Natural fringe</b><small>July 4 · before/after</small></div></div>
+          </div><nav class="tabbar"><button class="tab"><span>⌁</span>Harmony</button><button class="tab selected"><span>◫</span>Looks</button><button class="tab"><span>⚙</span>Settings</button></nav></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="screen-style-browser">
+          <p class="screen-label">Main 04 · Hairstyle selection</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen" style="padding-bottom:105px">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span class="nav-title">Choose a hairstyle</span><span class="nav-title num">44</span></div>
+            <div class="selfie-chip"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Selected user selfie"></div><div><b>Your photo</b><br><span style="color:var(--muted)">Front view</span></div><span style="margin-left:auto">›</span></div>
+            <div class="filters"><button class="chip selected">All</button><button class="chip">Short</button><button class="chip">Textured</button><button class="chip">Classic</button><button class="chip">Modern</button></div>
+            <h4 style="margin-bottom:10px">Best for an oval face</h4><div class="style-grid">
+              <button class="style-option selected"><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Textured crop"></div><span>Textured crop</span></button><button class="style-option"><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Soft quiff"></div><span>Soft quiff</span></button><button class="style-option"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Classic taper"></div><span>Classic taper</span></button><button class="style-option"><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="French crop"></div><span>French crop</span></button><button class="style-option"><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Side sweep"></div><span>Side sweep</span></button><button class="style-option"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Natural fringe"></div><span>Natural fringe</span></button><button class="style-option"><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Low fade"></div><span>Low fade</span></button><button class="style-option"><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Modern ivy"></div><span>Modern ivy</span></button><button class="style-option"><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Soft slickback"></div><span>Soft slickback</span></button>
+            </div>
+          </div><div class="sticky-cta"><button class="primary">Generate preview</button></div></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="screen-saved-look">
+          <p class="screen-label">Main 05 · Saved look</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen">
+            <div class="nav"><button class="icon-btn plain" aria-label="Go back">‹</button><span class="nav-title">Look</span><button class="icon-btn plain" aria-label="More options">•••</button></div>
+            <div class="compare" data-compare style="height:390px;--split:52%"><div class="after crop"><img src="assets/notmeyet-user.jpg" alt="Saved textured hairstyle"></div><div class="before front"><img src="assets/notmeyet-user.jpg" alt="Original photo before saved look"></div><div class="compare-badges"><span class="glass-label">Before</span><span class="glass-label">After</span></div></div>
+            <input class="compare-slider" type="range" min="12" max="88" value="52" aria-label="Compare the before and after images" style="width:100%;margin:8px 0">
+            <h4>Textured crop</h4><p class="sub">July 21, 2026 · Volume above the temples complements the oval shape while preserving natural proportions.</p>
+            <div class="detail-actions"><button class="action"><span>↓</span>Save</button><button class="action"><span>↗</span>Share</button><button class="action"><span>♡</span>Favorite</button><button class="action danger"><span>⌫</span>Delete</button></div>
+            <button class="secondary">Try a similar style</button><h4 style="margin-top:16px;font-size:14px">Similar suggestions</h4><div class="related"><div class="portrait angle"><img src="assets/notmeyet-user.jpg" alt="Similar quiff hairstyle"></div><div class="portrait crop"><img src="assets/notmeyet-user.jpg" alt="Similar fade hairstyle"></div><div class="portrait front"><img src="assets/notmeyet-user.jpg" alt="Similar taper hairstyle"></div></div>
+          </div><nav class="tabbar"><button class="tab"><span>⌁</span>Harmony</button><button class="tab selected"><span>◫</span>Looks</button><button class="tab"><span>⚙</span>Settings</button></nav></div>
+        </article>
+
+        <article class="screen-wrap" data-od-id="screen-settings">
+          <p class="screen-label">Main 06 · Settings</p>
+          <div class="phone"><div class="status"><span>9:41</span><div class="status-icons">● ◒ <span></span></div></div><div class="screen scroll-screen">
+            <div class="large-title"><h3>Settings</h3></div>
+            <div class="settings-group"><span>Account</span><div class="settings-list"><button class="settings-row"><b>Apple ID</b><small>Signed in ›</small></button><button class="settings-row"><b>Plan</b><small>Free ›</small></button><button class="settings-row"><b>Manage subscription</b><span>›</span></button></div></div>
+            <div class="settings-group"><span>Privacy and data</span><div class="settings-list"><button class="settings-row"><b>Manage photos</b><span>›</span></button><button class="settings-row destructive"><b>Delete uploaded photos</b><span>›</span></button><button id="delete-account" class="settings-row destructive"><b>Delete account and all photos</b><span>›</span></button></div></div>
+            <div class="settings-group"><span>General</span><div class="settings-list"><button class="settings-row"><b>Notifications</b><small>On ›</small></button><button class="settings-row"><b>Appearance</b><small>System ›</small></button><button class="settings-row"><b>About</b><span>›</span></button><button class="settings-row"><b>Privacy Policy</b><span>›</span></button><button class="settings-row"><b>Terms of Use</b><span>›</span></button></div></div>
+            <div class="settings-group"><span>Session</span><div class="settings-list"><button class="settings-row destructive"><b>Log out</b></button></div></div>
+          </div><nav class="tabbar"><button class="tab"><span>⌁</span>Harmony</button><button class="tab"><span>◫</span>Looks</button><button class="tab selected"><span>⚙</span>Settings</button></nav></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="delete-dialog" aria-labelledby="delete-title"><div class="dialog-copy"><h4 id="delete-title">Delete your account?</h4><p>This is permanent. We'll remove your photos, previews, face analysis, derived data, preferences, and profile from active systems. Limited transaction records and scheduled backups may remain for their required retention periods.</p></div><div class="dialog-actions"><button id="cancel-delete">Cancel</button><button id="confirm-delete">Delete all</button></div></dialog>
+
+  <script>
+    document.querySelectorAll('.compare-slider').forEach(slider => {
+      slider.addEventListener('input', event => {
+        event.target.previousElementSibling.style.setProperty('--split', `${event.target.value}%`);
+      });
+    });
+
+    document.querySelectorAll('[data-choice-group]').forEach(group => {
+      group.querySelectorAll('.choice').forEach(choice => {
+        choice.addEventListener('click', () => {
+          if (group.dataset.choiceGroup === 'single') {
+            group.querySelectorAll('.choice').forEach(item => item.classList.remove('selected'));
+          }
+          choice.classList.toggle('selected', group.dataset.choiceGroup === 'multi' ? !choice.classList.contains('selected') : true);
+          const continueButton = group.closest('.screen').querySelector('.choice-continue');
+          if (continueButton) continueButton.disabled = !group.querySelector('.selected');
+        });
+      });
+    });
+
+    document.querySelectorAll('.filters .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        chip.parentElement.querySelectorAll('.chip').forEach(item => item.classList.remove('selected'));
+        chip.classList.add('selected');
+      });
+    });
+
+    document.querySelectorAll('[data-length-group]').forEach(group => {
+      group.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          if (chip.hasAttribute('data-surprise')) {
+            group.querySelectorAll('.chip').forEach(item => item.classList.remove('selected'));
+            chip.classList.add('selected');
+          } else {
+            group.querySelector('[data-surprise]').classList.remove('selected');
+            chip.classList.toggle('selected');
+          }
+        });
+      });
+    });
+
+    document.querySelectorAll('.style-option').forEach(option => {
+      option.addEventListener('click', () => {
+        option.parentElement.querySelectorAll('.style-option').forEach(item => item.classList.remove('selected'));
+        option.classList.add('selected');
+      });
+    });
+
+    document.querySelector('#annotation-switch')?.addEventListener('click', event => {
+      event.currentTarget.classList.toggle('off');
+      document.querySelector('#detail-landmarks').classList.toggle('hidden');
+    });
+
+    document.querySelector('#paywall-close').addEventListener('click', () => {
+      const phone = document.querySelector('#paywall-phone');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = 'Not now selected · your free result is safe';
+      phone.appendChild(toast);
+      window.setTimeout(() => toast.remove(), 2400);
+    });
+
+    const offerLabels = ['small credit pack', 'larger credit pack', 'weekly membership'];
+    document.querySelectorAll('[data-offers] .offer').forEach((offer, index) => {
+      offer.addEventListener('click', () => {
+        offer.parentElement.querySelectorAll('.offer').forEach(item => item.classList.remove('selected'));
+        offer.classList.add('selected');
+        document.querySelector('#offer-cta').textContent = `Continue with ${offerLabels[index]}`;
+      });
+    });
+
+    const deleteDialog = document.querySelector('#delete-dialog');
+    document.querySelector('#delete-account').addEventListener('click', () => deleteDialog.showModal());
+    document.querySelector('#cancel-delete').addEventListener('click', () => deleteDialog.close());
+    document.querySelector('#confirm-delete').addEventListener('click', () => deleteDialog.close());
+
+    document.querySelectorAll('[data-action="camera"], [data-action="photos"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const phone = button.closest('.phone');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = button.dataset.action === 'camera' ? 'Camera ready' : 'Photo library opened';
+        phone.appendChild(toast);
+        window.setTimeout(() => toast.remove(), 1800);
+      });
+    });
+  </script>
+</body>
+</html>
