@@ -1,0 +1,14 @@
+// Copy these values into Configuration/Secrets.xcconfig and wire that file
+// into local/CI builds after the external service configuration is delivered.
+NMY_GOOGLE_CLIENT_ID = PLACEHOLDER_GOOGLE_CLIENT_ID
+NMY_GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.PLACEHOLDER
+NMY_REVENUECAT_API_KEY = PLACEHOLDER_REVENUECAT_API_KEY
+NMY_REVENUECAT_ENTITLEMENT_ID = pro
+NMY_LOOKS_API_BASE_URL =
+NMY_LOOKS_AUTH_TOKEN =
+NMY_TERMS_URL =
+NMY_PRIVACY_URL =
+NMY_FACIAL_DATA_DISCLOSURES_APPROVED = NO
+
+// Register NMY_GOOGLE_REVERSED_CLIENT_ID in the app target's URL Types when
+// the real GoogleService-Info.plist is supplied.

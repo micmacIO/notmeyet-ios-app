@@ -60,3 +60,8 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Local service configuration
+Configuration/Secrets.xcconfig
+notmeyet/GoogleService-Info.plist
+notmeyet/Configuration/GoogleService-Info.plist

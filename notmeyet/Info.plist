@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(NMY_GOOGLE_REVERSED_CLIENT_ID)</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NMYFacialDataDisclosuresApproved</key>
+	<string>$(NMY_FACIAL_DATA_DISCLOSURES_APPROVED)</string>
+	<key>NMYGoogleClientID</key>
+	<string>$(NMY_GOOGLE_CLIENT_ID)</string>
+	<key>NMYLooksAPIBaseURL</key>
+	<string>$(NMY_LOOKS_API_BASE_URL)</string>
+	<key>NMYLooksAuthToken</key>
+	<string>$(NMY_LOOKS_AUTH_TOKEN)</string>
+	<key>NMYPrivacyURL</key>
+	<string>$(NMY_PRIVACY_URL)</string>
+	<key>NMYRevenueCatAPIKey</key>
+	<string>$(NMY_REVENUECAT_API_KEY)</string>
+	<key>NMYRevenueCatEntitlementID</key>
+	<string>$(NMY_REVENUECAT_ENTITLEMENT_ID)</string>
+	<key>NMYServiceMode</key>
+	<string>$(NMY_SERVICE_MODE)</string>
+	<key>NMYTermsURL</key>
+	<string>$(NMY_TERMS_URL)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>NotMeYet uses the camera only when you choose to take a front photo for your preview.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations~iphone</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>

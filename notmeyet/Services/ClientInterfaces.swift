@@ -1,0 +1,67 @@
+import Foundation
+
+struct AuthenticationClient {
+    var currentUserID: () -> String?
+    var signIn: (AuthenticationProvider) async throws -> String
+    var handleOpenURL: (URL) -> Bool
+}
+
+struct PurchaseClient {
+    var bindUser: (String) async throws -> Void
+    var currentAccess: () async throws -> AccessStatus
+    var purchase: () async throws -> AccessStatus
+    var restore: () async throws -> AccessStatus
+    var accessUpdates: () -> AsyncStream<AccessStatus>
+}
+
+struct RoutingGateClient {
+    var gate: (String) -> RoutingGate
+    var setGate: (RoutingGate, String) -> Void
+    var clearAll: () -> Void
+}
+
+nonisolated struct LooksClient {
+    var analyze: (PreparedPhoto) async throws -> HarmonyResult
+    var generateLook: (PreparedPhoto, HarmonyResult?) async throws -> GeneratedLook
+}
+
+nonisolated struct GeneratedImageClient {
+    var load: (URL) async throws -> Data
+}
+
+struct ImagePreparationPolicy: Equatable, Sendable {
+    let maximumLongEdge: Int
+    let jpegQuality: Double
+
+    static let mock = ImagePreparationPolicy(maximumLongEdge: 2_048, jpegQuality: 0.85)
+}
+
+nonisolated struct PhotoProcessingClient {
+    var prepare: (Data, ImagePreparationPolicy) async throws -> PreparedPhoto
+}
+
+enum CameraAuthorizationState: Equatable, Sendable {
+    case authorized
+    case notDetermined
+    case denied
+    case restricted
+    case unknown
+}
+
+@MainActor
+struct CameraAccessClient {
+    var isAvailable: @MainActor () -> Bool
+    var authorizationState: @MainActor () -> CameraAuthorizationState
+    var requestAccess: @MainActor () async -> Bool
+}
+
+struct AppDependencies {
+    let configuration: AppConfiguration
+    let authentication: AuthenticationClient
+    let purchase: PurchaseClient
+    let routingGate: RoutingGateClient
+    let looks: LooksClient
+    let generatedImage: GeneratedImageClient
+    let photoProcessing: PhotoProcessingClient
+    let cameraAccess: CameraAccessClient
+}
