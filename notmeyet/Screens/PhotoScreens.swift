@@ -45,10 +45,13 @@ struct PhotoPreparationScreen: View {
                 NMYErrorPanel(message: error)
                     .padding(.top, 14)
                 if model.shouldOfferCameraSettings {
-                    Button("Open Settings") { openSettings() }
-                        .font(NMYDesign.Typography.supporting.bold())
-                        .frame(minHeight: NMYDesign.minimumTarget)
-                        .accessibilityIdentifier("camera.openSettings")
+                    Button(action: openSettings) {
+                        Text("Open Settings")
+                            .font(NMYDesign.Typography.supporting.bold())
+                            .frame(minHeight: NMYDesign.minimumTarget)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityIdentifier("camera.openSettings")
                 }
             }
         } actions: {
@@ -123,6 +126,7 @@ struct PhotoPreparationScreen: View {
     private func load(_ item: PhotosPickerItem?) {
         guard let item else { return }
         Task {
+            defer { selectedPhoto = nil }
             await model.loadLibraryPhoto {
                 try await item.loadTransferable(type: Data.self)
             }
@@ -165,8 +169,6 @@ struct PhotoReviewScreen: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: reviewImageHeight(in: geometry.size.height))
                             .clipShape(.rect(cornerRadius: 28))
-                            .accessibilityLabel("Your selected front photo")
-                            .accessibilityIdentifier("photo.review.image")
 
                         Text("Ready to review")
                             .font(NMYDesign.Typography.detail.bold())
@@ -177,16 +179,23 @@ struct PhotoReviewScreen: View {
                             .clipShape(.capsule)
                             .padding(.bottom, 16)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Your selected front photo. Ready to review.")
+                    .accessibilityAddTraits(.isImage)
+                    .accessibilitySortPriority(2)
+                    .accessibilityIdentifier("photo.review.image")
                 }
 
                 Text("Use this photo?")
                     .font(NMYDesign.Typography.cardTitle)
                     .padding(.top, 18)
+                    .accessibilitySortPriority(3)
                     .nmyRouteHeading(id: "photo-review")
                 Text("Check that your face is visible, centered, and evenly lit. Photo quality has not been automatically validated.")
                     .font(NMYDesign.Typography.supporting)
                     .foregroundStyle(NMYDesign.muted)
                     .padding(.top, 6)
+                    .accessibilitySortPriority(1)
             } actions: {
                 VStack(spacing: 10) {
                     Button("Use this photo") { model.usePhoto() }
@@ -235,7 +244,8 @@ private struct PhotoGuideView: View {
         .aspectRatio(353 / 243, contentMode: .fit)
         .clipShape(.rect(cornerRadius: 28))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Example of a clear, front-facing photo")
+        .accessibilityLabel("Example of a clear, front-facing photo centered within the oval guide")
+        .accessibilityAddTraits(.isImage)
     }
 }
 

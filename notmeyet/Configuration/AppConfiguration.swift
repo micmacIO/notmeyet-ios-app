@@ -12,7 +12,6 @@ struct AppConfiguration: Equatable, Sendable {
     let revenueCatAPIKey: String
     let revenueCatEntitlementID: String
     let looksAPIBaseURL: URL?
-    let looksAuthToken: String
     let termsURL: URL?
     let privacyURL: URL?
     let facialDataDisclosuresApproved: Bool
@@ -30,7 +29,6 @@ struct AppConfiguration: Equatable, Sendable {
         let googleClientID = values["NMYGoogleClientID"] as? String ?? ""
         let revenueCatAPIKey = values["NMYRevenueCatAPIKey"] as? String ?? ""
         let entitlementID = values["NMYRevenueCatEntitlementID"] as? String ?? ""
-        let looksAuthToken = values["NMYLooksAuthToken"] as? String ?? ""
         let looksURL = Self.validURL(from: values["NMYLooksAPIBaseURL"] as? String)
         let termsURL = Self.validURL(from: values["NMYTermsURL"] as? String)
         let privacyURL = Self.validURL(from: values["NMYPrivacyURL"] as? String)
@@ -45,7 +43,6 @@ struct AppConfiguration: Equatable, Sendable {
             revenueCatAPIKey: revenueCatAPIKey,
             entitlementID: entitlementID,
             looksURL: looksURL,
-            looksAuthToken: looksAuthToken,
             termsURL: termsURL,
             privacyURL: privacyURL,
             disclosuresApproved: disclosuresApproved,
@@ -58,7 +55,6 @@ struct AppConfiguration: Equatable, Sendable {
             revenueCatAPIKey: revenueCatAPIKey,
             revenueCatEntitlementID: entitlementID,
             looksAPIBaseURL: looksURL,
-            looksAuthToken: looksAuthToken,
             termsURL: termsURL,
             privacyURL: privacyURL,
             facialDataDisclosuresApproved: disclosuresApproved
@@ -72,7 +68,6 @@ struct AppConfiguration: Equatable, Sendable {
         revenueCatAPIKey: String,
         entitlementID: String,
         looksURL: URL?,
-        looksAuthToken: String,
         termsURL: URL?,
         privacyURL: URL?,
         disclosuresApproved: Bool,
@@ -99,7 +94,6 @@ struct AppConfiguration: Equatable, Sendable {
             revenueCatAPIKey.isPlaceholder ? "RevenueCat API key" : nil,
             entitlementID.isPlaceholder ? "RevenueCat entitlement" : nil,
             looksURL == nil ? "Looks API URL" : nil,
-            looksAuthToken.isPlaceholder ? "Looks API authentication" : nil,
             termsURL == nil ? "Terms URL" : nil,
             privacyURL == nil ? "Privacy URL" : nil,
             disclosuresApproved ? nil : "facial-data disclosures",

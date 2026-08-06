@@ -145,9 +145,13 @@ Screen 06 SHALL explain front-photo guidance, offer `Take my front photo`, `Choo
 - **WHEN** a camera or library image is accepted
 - **THEN** the photo used for display or upload contains no source metadata, has normalized orientation, and does not exceed the active policy's dimensions or encoding limits
 
-#### Scenario: Mock image policy
-- **WHEN** an image is prepared in mock mode
+#### Scenario: Current image policy
+- **WHEN** an image is prepared for mock display or live upload
 - **THEN** its long edge is at most 2048 pixels and its JPEG quality is 0.85
+
+#### Scenario: Live upload byte limit
+- **WHEN** a prepared image is accepted for live Looks upload
+- **THEN** its metadata-free JPEG upload representation is no larger than the configured 10,485,760-byte backend ceiling
 
 #### Scenario: Library selection is cancelled or invalid
 - **WHEN** the user cancels the picker or the selected image cannot be decoded

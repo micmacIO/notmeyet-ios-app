@@ -3,6 +3,7 @@ import SwiftUI
 struct WelcomeScreen: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let model: OnboardingFlowModel
 
     var body: some View {
@@ -25,39 +26,50 @@ struct WelcomeScreen: View {
             .ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Spacer(minLength: NMYDesign.Spacing.xxLarge)
-                    Text("NOTMEYET")
-                        .font(NMYDesign.Typography.eyebrow)
-                        .tracking(1.4)
-                        .padding(.bottom, NMYDesign.Spacing.small)
-                    Text("See who you could be.")
-                        .font(NMYDesign.Typography.screenTitle)
-                        .tracking(-0.6)
-                        .nmyRouteHeading(id: "welcome")
-                    Text("See how your features work together and preview a hairstyle chosen for your face.")
-                        .font(NMYDesign.Typography.supporting)
-                        .foregroundStyle(contrast == .increased ? .white : .white.opacity(0.88))
-                        .padding(.top, 9)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    VStack(spacing: 10) {
-                        Button("Discover my next look") { model.showPrimaryGoal() }
-                            .buttonStyle(.nmyPrimary)
-                            .accessibilityIdentifier("welcome.discover")
-                        Button("Already have an account? Sign in") { model.showReturningSignIn() }
-                            .buttonStyle(.nmySecondary)
-                            .accessibilityIdentifier("welcome.signIn")
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        welcomeContent
+                    } else {
+                        welcomeContent
+                            .containerRelativeFrame(.vertical, alignment: .bottomLeading)
                     }
-                    .padding(.top, NMYDesign.Spacing.xxLarge)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, NMYDesign.horizontalInset)
-                .padding(.bottom, NMYDesign.Spacing.small)
-                .containerRelativeFrame([.horizontal, .vertical], alignment: .bottomLeading)
+                .containerRelativeFrame(.horizontal)
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    private var welcomeContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: NMYDesign.Spacing.xxLarge)
+            Text("NOTMEYET")
+                .font(NMYDesign.Typography.eyebrow)
+                .tracking(1.4)
+                .padding(.bottom, NMYDesign.Spacing.small)
+            Text("See who you could be.")
+                .font(NMYDesign.Typography.screenTitle)
+                .tracking(-0.6)
+                .nmyRouteHeading(id: "welcome")
+            Text("See how your features work together and preview a hairstyle chosen for your face.")
+                .font(NMYDesign.Typography.supporting)
+                .foregroundStyle(contrast == .increased ? .white : .white.opacity(0.88))
+                .padding(.top, 9)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 10) {
+                Button("Discover my next look") { model.showPrimaryGoal() }
+                    .buttonStyle(.nmyPrimary)
+                    .accessibilityIdentifier("welcome.discover")
+                Button("Already have an account? Sign in") { model.showReturningSignIn() }
+                    .buttonStyle(.nmySecondary)
+                    .accessibilityIdentifier("welcome.signIn")
+            }
+            .padding(.top, NMYDesign.Spacing.xxLarge)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, NMYDesign.horizontalInset)
+        .padding(.bottom, NMYDesign.Spacing.small)
     }
 }
 

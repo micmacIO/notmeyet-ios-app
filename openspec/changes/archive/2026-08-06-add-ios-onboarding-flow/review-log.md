@@ -144,3 +144,169 @@
 ### 🔴 Outstanding
 
 - None.
+
+## proposal Round 3 — 2026-08-05 15:06
+
+### 🔴 Fixed
+
+- None in this round.
+
+### 🟡 Addressed
+
+- None in this round.
+
+### 🔴 Outstanding
+
+- Live facial-data upload and production release were not explicitly blocked on approved retention/deletion terms, disclosures, and legal URLs.
+- The concrete transformation flow omitted the approved `HAIRSTYLE` filter and first-ranked one-credit constraint.
+
+## proposal Round 4 — 2026-08-05 15:06
+
+### 🔴 Fixed
+
+- Made approved retention/deletion terms, disclosures, and legal URLs explicit live-upload and production-release gates.
+- Required `HAIRSTYLE` search filtering and selection of the first ranked one-credit transformation.
+
+### 🟡 Addressed
+
+- None.
+
+### 🔴 Outstanding
+
+- None.
+
+## design Round 3 — 2026-08-05 15:19
+
+### 🔴 Fixed
+
+- None in this round.
+
+### 🟡 Addressed
+
+- None in this round.
+
+### 🔴 Outstanding
+
+- Generation retry behavior did not distinguish resumable polling/download failures from ambiguous charged POST outcomes or terminal failures.
+- First-ranked one-credit selection was ambiguous about whether a malformed first response could be skipped.
+- Generated-image URLs crossed the presentation boundary instead of returning bounded presentation-ready bytes.
+- Poll-budget ownership, sensitive cleanup, image/redirect bounds, and lossless ID conversion needed explicit design rules.
+
+## design Round 4 — 2026-08-05 15:19
+
+### 🔴 Fixed
+
+- Added a stage-specific retry matrix that never replays ambiguous charged generation creation and does not retry terminal failed orders.
+- Required the backend-guaranteed first ranked result and fail-closed validation rather than skipping to a lower-ranked item.
+- Moved generated-image download and validation inside `LooksClient`, returning presentation-ready bytes.
+
+### 🟡 Addressed
+
+- Defined per-invocation polling budgets, cancellation/resume behavior, redirect and resource limits, and checked decimal-string/`Int64` conversion.
+
+### 🔴 Outstanding
+
+- Screen-12/Main cleanup did not explicitly clear prepared display and upload bytes from `OnboardingDraft`.
+
+## design Round 5 — 2026-08-05 15:19
+
+### 🔴 Fixed
+
+- Required screen-12/Main entry and other resets to clear prepared display/upload bytes and every other photo-derived draft value.
+
+### 🟡 Addressed
+
+- None.
+
+### 🔴 Outstanding
+
+- None.
+
+## specs Round 3 — 2026-08-05 15:32
+
+### 🔴 Fixed
+
+- None in this round.
+
+### 🟡 Addressed
+
+- None in this round.
+
+### 🔴 Outstanding
+
+- Ambiguous upload and analysis-trigger outcomes could have replayed sensitive side-effecting requests.
+- The 2048-pixel/0.85 JPEG preparation policy applied only to mock mode despite the frozen design applying it to live upload too.
+- Safe-stage retry categories, omitted analysis blocks, and the exact 10 MB byte ceiling were underspecified.
+
+## specs Round 4 — 2026-08-05 15:32
+
+### 🔴 Fixed
+
+- Made ambiguous upload non-retryable and made an ambiguous analysis trigger poll the known selfie without replaying the trigger.
+- Applied the 2048-pixel/0.85 JPEG preparation policy to mock and live paths.
+
+### 🟡 Addressed
+
+- Treated omitted analysis blocks as incomplete and fixed the live ceiling at 10,485,760 bytes.
+
+### 🔴 Outstanding
+
+- Safe retries did not fully enumerate analysis polling/decoding and generation token/search/validation/explicit-rejection stages.
+
+## specs Round 5 — 2026-08-05 15:32
+
+### 🔴 Fixed
+
+- None.
+
+### 🟡 Addressed
+
+- Added explicit safe-stage scenarios for known-selfie and known-generation polling/decoding failures plus pre-generation token, search, validation, and explicit-rejection failures.
+
+### 🔴 Outstanding
+
+- None.
+
+## tasks Round 4 — 2026-08-05 15:48
+
+### 🔴 Fixed
+
+- None in this round.
+
+### 🟡 Addressed
+
+- None in this round.
+
+### 🔴 Outstanding
+
+- Completed screen-11 loading and normalized-guide tasks were not explicitly replaced by the new presentation boundary.
+- Privacy audits predated live transport, remote correlation cleanup omitted several reset routes, and multiple implementation/test tasks exceeded two hours.
+- Revised visual checks lacked correction pairs, and verification omitted several auth, mapping, error-suppression, ignored-field, and actor-isolation cases.
+
+## tasks Round 5 — 2026-08-05 15:48
+
+### 🔴 Fixed
+
+- Added explicit replacement tasks for screen-11 loading and normalized guides, post-transport privacy audits, every cleanup route, and visual capture/correction pairs.
+
+### 🟡 Addressed
+
+- Added focused token, mapping, raw-error, `personalizedReason`, and non-main-thread image-work verification.
+
+### 🔴 Outstanding
+
+- DTO/domain/image/lifecycle tasks remained too broad, and generation retry wording did not clearly separate safe known-order resume from ambiguous or terminal failures.
+
+## tasks Round 6 — 2026-08-05 15:48
+
+### 🔴 Fixed
+
+- None.
+
+### 🟡 Addressed
+
+- Split DTO, domain, image, and lifecycle work into bounded tasks and separated safe known-order resume from non-retryable ambiguous/terminal generation behavior.
+
+### 🔴 Outstanding
+
+- None.

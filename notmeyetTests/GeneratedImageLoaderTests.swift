@@ -8,120 +8,222 @@ import UIKit
 struct GeneratedImageLoaderTests {
     private let secureURL = URL(string: "https://example.com/generated.png")!
 
-    @Test("Secure image responses load without cache reuse")
-    func loadsSecureImage() async throws {
-        let image = try makeImageData(color: .systemPink)
-        let responses = StubResponseSequence([
-            StubImageResponse(statusCode: 200, mimeType: "image/png", data: image)
+    @Test("Valid raster responses load without cookies or cache reuse")
+    func loadsValidRasterEphemerally() async throws {
+        let firstImage = try makeImageData(color: .systemPink)
+        let secondImage = try makeImageData(color: .systemBlue)
+        let responses = ImageResponseSequence([
+            ImageStubResponse(
+                statusCode: 200,
+                headers: [
+                    "Content-Type": "image/png",
+                    "Cache-Control": "public, max-age=3600",
+                    "Set-Cookie": "sensitive=value"
+                ],
+                data: firstImage
+            ),
+            ImageStubResponse(
+                statusCode: 200,
+                headers: ["Content-Type": "image/png"],
+                data: secondImage
+            )
         ])
-        GeneratedImageURLProtocol.handler = { request in
-            try responses.next(for: request)
-        }
+        GeneratedImageURLProtocol.handler = { request in try responses.next(for: request) }
         defer { GeneratedImageURLProtocol.reset() }
         let loader = makeLoader()
 
-        #expect(try await loader.load(url: secureURL) == image)
-        let requests = responses.recordedRequests
-        #expect(requests.count == 1)
-        #expect(requests.first?.cachePolicy == .reloadIgnoringLocalCacheData)
+        #expect(try await loader.load(url: secureURL) == firstImage)
+        #expect(try await loader.load(url: secureURL) == secondImage)
+        #expect(responses.requests.count == 2)
+        #expect(responses.requests.allSatisfy {
+            $0.cachePolicy == .reloadIgnoringLocalCacheData
+        })
+        #expect(responses.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Cookie") == nil
+        })
     }
 
-    @Test("Insecure URLs are rejected before transport")
-    func rejectsInsecureURL() async {
-        let responses = StubResponseSequence([])
-        GeneratedImageURLProtocol.handler = { request in
-            try responses.next(for: request)
-        }
+    @Test("Initial and final response URLs must use HTTPS")
+    func rejectsInsecureInitialAndFinalURLs() async throws {
+        let responses = ImageResponseSequence([])
+        GeneratedImageURLProtocol.handler = { request in try responses.next(for: request) }
         defer { GeneratedImageURLProtocol.reset() }
         let loader = makeLoader()
-        let insecureURL = URL(string: "http://example.com/generated.png")!
 
-        await #expect(
-            throws: ServiceFailure.transport("The generated image URL is not secure.")
-        ) {
-            try await loader.load(url: insecureURL)
+        await #expect(throws: ServiceFailure.transport(
+            "The generated image URL is not secure."
+        )) {
+            try await loader.load(url: URL(string: "http://example.com/generated.png")!)
         }
-        #expect(responses.recordedRequests.isEmpty)
+        #expect(responses.requests.isEmpty)
+
+        let image = try makeImageData(color: .systemPink)
+        let redirected = ImageResponseSequence([
+            ImageStubResponse(
+                statusCode: 200,
+                headers: ["Content-Type": "image/png"],
+                data: image,
+                finalURL: URL(string: "http://cdn.example.com/generated.png")
+            )
+        ])
+        GeneratedImageURLProtocol.handler = { request in try redirected.next(for: request) }
+
+        await #expect(throws: ServiceFailure.transport(
+            "The generated image URL is not secure."
+        )) {
+            try await loader.load(url: secureURL)
+        }
+        #expect(redirected.requests.count == 1)
     }
 
-    @Test("Non-success status fails closed")
-    func rejectsNonSuccessStatus() async throws {
-        defer { GeneratedImageURLProtocol.reset() }
+    @Test("Status and unsupported MIME types fail closed")
+    func validatesHTTPEnvelope() async throws {
         let image = try makeImageData(color: .systemPink)
 
         await expectFailure(
-            StubImageResponse(statusCode: 503, mimeType: "image/png", data: image),
+            ImageStubResponse(
+                statusCode: 503,
+                headers: ["Content-Type": "image/png"],
+                data: image
+            ),
             expected: .transport("The generated image is unavailable. Try again.")
         )
-    }
-
-    @Test("Unsupported MIME type fails closed")
-    func rejectsUnsupportedMIMEType() async throws {
-        defer { GeneratedImageURLProtocol.reset() }
-        let image = try makeImageData(color: .systemPink)
-
         await expectFailure(
-            StubImageResponse(statusCode: 200, mimeType: "text/plain", data: image),
+            ImageStubResponse(
+                statusCode: 200,
+                headers: ["Content-Type": "text/plain"],
+                data: image
+            ),
             expected: .transport("The generated result is not a supported image.")
         )
     }
 
-    @Test("Invalid image data fails closed")
-    func rejectsInvalidImageData() async {
-        defer { GeneratedImageURLProtocol.reset() }
-
-        await expectFailure(
-            StubImageResponse(statusCode: 200, mimeType: "image/png", data: Data("invalid".utf8)),
-            expected: .transport("The generated result is too large or invalid.")
-        )
-    }
-
-    @Test("Oversized image data fails closed")
-    func rejectsOversizedImageData() async throws {
-        defer { GeneratedImageURLProtocol.reset() }
+    @Test("Missing and empty image MIME values fail while parameters are accepted")
+    func validatesImageMIMEValues() async throws {
         let image = try makeImageData(color: .systemPink)
 
+        for headers: [String: String] in [
+            [:],
+            ["Content-Type": ""],
+            ["Content-Type": "image/"]
+        ] {
+            await expectFailure(
+                ImageStubResponse(statusCode: 200, headers: headers, data: image),
+                expected: .transport("The generated result is not a supported image.")
+            )
+        }
+
+        let response = ImageStubResponse(
+            statusCode: 200,
+            headers: ["Content-Type": "image/png; charset=binary"],
+            data: image
+        )
+        #expect(try await load(response) == image)
+    }
+
+    @Test("Encoded byte limit accepts equality and rejects one over")
+    func validatesEncodedByteBoundary() async throws {
+        let image = try makeImageData(color: .systemPink)
+        let response = ImageStubResponse(
+            statusCode: 200,
+            headers: ["Content-Type": "image/png"],
+            data: image
+        )
+
+        #expect(try await load(response, maximumBytes: image.count) == image)
         await expectFailure(
-            StubImageResponse(statusCode: 200, mimeType: "image/png", data: image),
-            maximumBytes: 1,
+            response,
+            maximumBytes: image.count - 1,
             expected: .transport("The generated result is too large or invalid.")
         )
     }
 
-    @Test("A failed load can retry and successful responses are not cached")
-    func retriesWithoutCacheReuse() async throws {
-        let firstImage = try makeImageData(color: .systemPink)
-        let secondImage = try makeImageData(color: .systemBlue)
-        let responses = StubResponseSequence([
-            StubImageResponse(statusCode: 503, mimeType: "image/png", data: Data()),
-            StubImageResponse(statusCode: 200, mimeType: "image/png", data: firstImage),
-            StubImageResponse(statusCode: 200, mimeType: "image/png", data: secondImage)
+    @Test("Default encoded byte limit is exactly 12 MiB")
+    func locksDefaultEncodedByteLimit() async throws {
+        let image = try makeImageData(color: .systemPink)
+        let twelveMiB = 12 * 1_024 * 1_024
+        let responses = ImageResponseSequence([
+            ImageStubResponse(
+                statusCode: 200,
+                headers: [
+                    "Content-Type": "image/png",
+                    "Content-Length": "\(twelveMiB)"
+                ],
+                data: image
+            ),
+            ImageStubResponse(
+                statusCode: 200,
+                headers: [
+                    "Content-Type": "image/png",
+                    "Content-Length": "\(twelveMiB + 1)"
+                ],
+                data: image
+            )
         ])
-        GeneratedImageURLProtocol.handler = { request in
-            try responses.next(for: request)
-        }
+        GeneratedImageURLProtocol.handler = { request in try responses.next(for: request) }
         defer { GeneratedImageURLProtocol.reset() }
-        let loader = makeLoader()
+        let loader = GeneratedImageLoader(protocolClasses: [GeneratedImageURLProtocol.self])
 
-        await #expect(
-            throws: ServiceFailure.transport("The generated image is unavailable. Try again.")
-        ) {
+        #expect(try await loader.load(url: secureURL) == image)
+        await #expect(throws: ServiceFailure.transport(
+            "The generated result is too large or invalid."
+        )) {
             try await loader.load(url: secureURL)
         }
-        #expect(try await loader.load(url: secureURL) == firstImage)
-        #expect(try await loader.load(url: secureURL) == secondImage)
-        #expect(responses.recordedRequests.count == 3)
-        #expect(
-            responses.recordedRequests.allSatisfy {
-                $0.cachePolicy == .reloadIgnoringLocalCacheData
-            }
+        #expect(responses.requests.count == 2)
+    }
+
+    @Test("Dimension limit accepts equality and rejects one over")
+    func validatesDimensionBoundary() async throws {
+        let image = try makeImageData(width: 3, height: 2, color: .systemPink)
+        let response = ImageStubResponse(
+            statusCode: 200,
+            headers: ["Content-Type": "image/png"],
+            data: image
+        )
+
+        #expect(try await load(response, maximumDimension: 3) == image)
+
+        await expectFailure(
+            response,
+            maximumDimension: 2,
+            expected: .transport("The generated result is too large or invalid.")
+        )
+    }
+
+    @Test("Decoded-pixel limit accepts equality and rejects one over")
+    func validatesDecodedPixelBoundary() async throws {
+        let image = try makeImageData(width: 3, height: 2, color: .systemPink)
+        let response = ImageStubResponse(
+            statusCode: 200,
+            headers: ["Content-Type": "image/png"],
+            data: image
+        )
+
+        #expect(try await load(response, maximumDecodedPixels: 6) == image)
+        await expectFailure(
+            response,
+            maximumDecodedPixels: 5,
+            expected: .transport("The generated result is too large or invalid.")
+        )
+    }
+
+    @Test("Malformed image bytes are rejected even with an image MIME type")
+    func rejectsInvalidRaster() async {
+        await expectFailure(
+            ImageStubResponse(
+                statusCode: 200,
+                headers: ["Content-Type": "image/png"],
+                data: Data("not-an-image".utf8)
+            ),
+            expected: .transport("The generated result is too large or invalid.")
         )
     }
 
     @Test("Cancellation stops transport and propagates CancellationError")
     func propagatesCancellation() async {
-        let started = TestSignal()
-        let stopped = TestSignal()
+        let started = ImageTestSignal()
+        let stopped = ImageTestSignal()
         GeneratedImageURLProtocol.handler = { _ in nil }
         GeneratedImageURLProtocol.onStart = {
             Task { await started.fire() }
@@ -144,74 +246,115 @@ struct GeneratedImageLoaderTests {
         await stopped.wait()
     }
 
-    private func makeLoader(maximumBytes: Int = 12 * 1_024 * 1_024) -> GeneratedImageLoader {
+    private func makeLoader(
+        maximumBytes: Int = 12 * 1_024 * 1_024,
+        maximumDimension: Int = 8_192,
+        maximumDecodedPixels: Int64 = 40_000_000
+    ) -> GeneratedImageLoader {
         GeneratedImageLoader(
             maximumBytes: maximumBytes,
+            maximumDimension: maximumDimension,
+            maximumDecodedPixels: maximumDecodedPixels,
             protocolClasses: [GeneratedImageURLProtocol.self]
         )
     }
 
     private func expectFailure(
-        _ response: StubImageResponse,
+        _ response: ImageStubResponse,
         maximumBytes: Int = 12 * 1_024 * 1_024,
+        maximumDimension: Int = 8_192,
+        maximumDecodedPixels: Int64 = 40_000_000,
         expected: ServiceFailure
     ) async {
-        let responses = StubResponseSequence([response])
-        GeneratedImageURLProtocol.handler = { request in
-            try responses.next(for: request)
-        }
-        let loader = makeLoader(maximumBytes: maximumBytes)
-
         await #expect(throws: expected) {
-            try await loader.load(url: secureURL)
+            try await load(
+                response,
+                maximumBytes: maximumBytes,
+                maximumDimension: maximumDimension,
+                maximumDecodedPixels: maximumDecodedPixels
+            )
         }
     }
 
-    private func makeImageData(color: UIColor) throws -> Data {
+    private func load(
+        _ response: ImageStubResponse,
+        maximumBytes: Int = 12 * 1_024 * 1_024,
+        maximumDimension: Int = 8_192,
+        maximumDecodedPixels: Int64 = 40_000_000
+    ) async throws -> Data {
+        let responses = ImageResponseSequence([response])
+        GeneratedImageURLProtocol.handler = { request in try responses.next(for: request) }
+        defer { GeneratedImageURLProtocol.reset() }
+        let loader = makeLoader(
+            maximumBytes: maximumBytes,
+            maximumDimension: maximumDimension,
+            maximumDecodedPixels: maximumDecodedPixels
+        )
+
+        return try await loader.load(url: secureURL)
+    }
+
+    private func makeImageData(
+        width: Int = 2,
+        height: Int = 2,
+        color: UIColor
+    ) throws -> Data {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2), format: format)
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height),
+            format: format
+        )
         let image = renderer.image { context in
             color.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         }
         return try #require(image.pngData())
     }
 }
 
-private struct StubImageResponse: Sendable {
+nonisolated private struct ImageStubResponse: Sendable {
     let statusCode: Int
-    let mimeType: String
+    let headers: [String: String]
     let data: Data
+    let finalURL: URL?
+
+    init(
+        statusCode: Int,
+        headers: [String: String],
+        data: Data,
+        finalURL: URL? = nil
+    ) {
+        self.statusCode = statusCode
+        self.headers = headers
+        self.data = data
+        self.finalURL = finalURL
+    }
 }
 
-private final class StubResponseSequence: @unchecked Sendable {
+nonisolated private final class ImageResponseSequence: @unchecked Sendable {
     private let lock = NSLock()
-    private var responses: [StubImageResponse]
-    private var requests: [URLRequest] = []
+    private var responses: [ImageStubResponse]
+    private var recordedRequests: [URLRequest] = []
 
-    init(_ responses: [StubImageResponse]) {
+    init(_ responses: [ImageStubResponse]) {
         self.responses = responses
     }
 
-    var recordedRequests: [URLRequest] {
-        lock.lock()
-        defer { lock.unlock() }
-        return requests
+    var requests: [URLRequest] {
+        lock.withLock { recordedRequests }
     }
 
-    func next(for request: URLRequest) throws -> StubImageResponse {
-        lock.lock()
-        defer { lock.unlock() }
-        requests.append(request)
-        guard responses.isEmpty == false else {
-            throw URLError(.badServerResponse)
+    func next(for request: URLRequest) throws -> ImageStubResponse {
+        try lock.withLock {
+            recordedRequests.append(request)
+            guard responses.isEmpty == false else { throw URLError(.badServerResponse) }
+            return responses.removeFirst()
         }
-        return responses.removeFirst()
     }
 }
 
-private actor TestSignal {
+private actor ImageTestSignal {
     private var hasFired = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -227,8 +370,8 @@ private actor TestSignal {
     }
 }
 
-private final class GeneratedImageURLProtocol: URLProtocol, @unchecked Sendable {
-    typealias Handler = @Sendable (URLRequest) throws -> StubImageResponse?
+nonisolated private final class GeneratedImageURLProtocol: URLProtocol, @unchecked Sendable {
+    typealias Handler = @Sendable (URLRequest) throws -> ImageStubResponse?
 
     nonisolated(unsafe) static var handler: Handler?
     nonisolated(unsafe) static var onStart: (@Sendable () -> Void)?
@@ -252,15 +395,12 @@ private final class GeneratedImageURLProtocol: URLProtocol, @unchecked Sendable 
         do {
             guard let stub = try handler(request) else { return }
             guard
-                let url = request.url,
+                let responseURL = stub.finalURL ?? request.url,
                 let response = HTTPURLResponse(
-                    url: url,
+                    url: responseURL,
                     statusCode: stub.statusCode,
                     httpVersion: "HTTP/1.1",
-                    headerFields: [
-                        "Content-Type": stub.mimeType,
-                        "Cache-Control": "public, max-age=3600"
-                    ]
+                    headerFields: stub.headers
                 )
             else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))

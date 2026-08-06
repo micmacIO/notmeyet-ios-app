@@ -2,7 +2,7 @@
 
 The repository contains an Xcode-generated SwiftUI/SwiftData sample with no product architecture or third-party packages. Its project currently targets iOS 26.2 for iPhone and iPad, while this change must support iOS 17+ on portrait-only iPhone. The visual source is `Design/notmeyet-ios-flow.html`; the agreed written flow is authoritative wherever the prototype's selected states, links, or dismissible paywall conflict with it.
 
-The onboarding is a branching 13-screen journey with authentication, sensitive image handling, two asynchronous backend operations, and entitlement-gated completion. Firebase, Google, RevenueCat, legal URLs, and REST contracts are not available yet. The implementation therefore needs production integration seams and deterministic mocks without inventing a production contract or allowing placeholder configuration to contact a service.
+The onboarding is a branching 13-screen journey with authentication, sensitive image handling, two asynchronous backend operations, and entitlement-gated completion. The Looksmaxxing OpenAPI contract and a successful end-to-end trace are now available for `https://api.micmac.io`; Firebase, Google, RevenueCat, legal URLs, backend failure/refund semantics, and production retention/deletion terms remain externally configured or deferred. The implementation therefore needs a concrete live Looks adapter alongside deterministic mocks, without allowing placeholder configuration or unapproved facial-data handling to contact a service.
 
 ## Goals / Non-Goals
 
@@ -11,6 +11,7 @@ The onboarding is a branching 13-screen journey with authentication, sensitive i
 - Deliver the complete native onboarding journey and an empty Main App destination with deterministic routing.
 - Match the supplied phone design at compact, standard, and large iPhone sizes while retaining native accessibility behavior.
 - Make authentication, analysis, generation, and purchase effects replaceable and independently testable.
+- Complete the live Looksmaxxing happy path using Firebase bearer authentication, bounded selfie upload, cancellable polling, ranked hairstyle selection, and ephemeral result-image loading.
 - Keep questionnaire answers, photos, analysis, and generated looks in memory only.
 - Make the active RevenueCat entitlement the sole authority for Main App access.
 - Allow developers and UI tests to exercise every success and failure state before external configuration arrives.
@@ -19,7 +20,7 @@ The onboarding is a branching 13-screen journey with authentication, sensitive i
 
 - Implement any of the six Main App screens shown after onboarding in the HTML.
 - Support iPad, landscape orientation, a newly invented dark theme, localization, analytics, or deep links.
-- Define the missing Looksmaxxing wire contracts, product catalog, credit semantics, or legal text.
+- Define backend failure/refund/idempotency semantics, result retention or deletion policy, Main App analysis-detail presentation, or legal text.
 - Persist questionnaire answers, photos, harmony results, generated images, or exact in-progress screens.
 - Perform local face detection, liveness, or photo-quality validation; screen 07 is review UI, not a verified quality claim.
 - Build a custom production paywall or custom camera capture pipeline.
@@ -91,7 +92,7 @@ Choices are typed values rather than display strings so later REST mapping does 
 | 03 | zero through six; initially empty; each value toggles independently | `I don't know what suits my face`; `Haircuts look different on me than on the model`; `I can't picture a new style before committing`; `I don't know what to ask my barber for`; `I've regretted a haircut before`; `I keep choosing the same safe style` |
 | 04 | zero or one; initially empty; selected value can be cleared | `Subtle` / `A cleaner version of my current look`; `Noticeable` / `Clearly different, but still easy to wear`; `Bold` / `Show me something I wouldn't normally try` |
 
-All three continuation buttons remain enabled when nothing is selected. Backward navigation retains current in-memory answers. Answers are not sent to either endpoint until a delivered contract explicitly maps them.
+All three continuation buttons remain enabled when nothing is selected. Backward navigation retains current in-memory answers. The delivered generation contract defines only `selfieId` and `transformationIds`, so questionnaire answers are never serialized or transmitted by onboarding.
 
 ### 3. Extract a small fixed design system from the HTML
 
@@ -129,22 +130,54 @@ Screen 06 launches `UIImagePickerController` in camera mode with the front camer
 
 Library selection uses SwiftUI `PhotosPicker` with a one-image limit, avoiding broad photo-library access. Selection cancellation and decoding failures remain on screen 06 with recoverable feedback. The preparation screen's guide is instructional and is not a custom live camera overlay.
 
-The selected asset is normalized for orientation, stripped of metadata, and downsampled according to an `ImagePreparationPolicy`. A dedicated photo-processing actor performs normalization, downsampling, JPEG encoding, and thumbnail work away from the main actor and returns a `Sendable` value containing immutable data. Mock defaults cap the long edge at 2048 pixels and encode JPEG at 0.85 quality; the live values remain configurable until backend limits arrive. A `PreparedPhoto` holds display and upload bytes only in memory. Retake, returning to the start, a received memory warning, or process termination cancels photo-derived work and discards it; an in-process memory warning atomically returns screens 07-11 to screen 06 with recoverable feedback.
+The selected asset is normalized for orientation, stripped of metadata, and downsampled according to an `ImagePreparationPolicy`. A dedicated photo-processing actor performs normalization, downsampling, JPEG encoding, and thumbnail work away from the main actor and returns a `Sendable` value containing immutable data. The current policy caps the long edge at 2048 pixels and encodes JPEG at 0.85 quality; live upload additionally rejects prepared bytes above the backend-configured 10,485,760-byte (10 MiB) ceiling before constructing a request. A `PreparedPhoto` holds display and upload bytes only in memory. Retake, returning to the start, a received memory warning, or process termination cancels photo-derived work and discards it; an in-process memory warning atomically returns screens 07-11 to screen 06 with recoverable feedback.
 
-### 6. Isolate unfinished REST transport behind presentation-ready results
+### 6. Keep the concrete REST workflow behind presentation-ready results
 
-The UI depends on a `LooksClient`, not wire DTOs. Its two operations are conceptually:
+The UI depends on a `LooksClient`, not wire DTOs. Its two operations remain conceptually:
 
 ```text
 analyze(preparedPhoto) -> HarmonyResult
 generateLook(preparedPhoto, availableAnalysisContext) -> GeneratedLook
 ```
 
-`HarmonyResult` supplies face-shape title and description, harmony title and description, and presentation-ready guide geometry. Mock guides use normalized `0...1` image coordinates so they scale with aspect-fit image bounds. `GeneratedLook` supplies an HTTPS image URL, style name, and explanation. The final adapters will map delivered `/analysis` and `/selfie` DTOs into these domain values; no speculative production request body is committed before the OpenAPI contract arrives. A transport actor performs request construction, JSON decoding, and response validation away from the main actor and returns `Sendable` domain values.
+`HarmonyResult` supplies downloaded annotated-mesh image bytes, the display-normalized `shape.primaryShape`, and `symmetry.overallScore`. Screen 09 formats a finite score in the inclusive `0...100` range with one decimal place as `<score> / 100` and exposes an equivalent “out of 100” accessibility value. Other analysis ratios and details are outside onboarding. `GeneratedLook` supplies bounded decoded generated-image bytes, `TransformationResponse.displayName`, and its static `description`; screen 11 labels that copy `About this look`. `personalizedReason`, when present, is ignored until a future capability defines its behavior. Remote image URLs remain private transport values and never enter screen state.
 
-Screens 08 and 10 initiate one cancellable async operation on entry and expose loading, failure, and retry phases. Raw transport errors are mapped to safe user-facing messages. Screen 09 renders the source photo, response guides, and response copy. Screen 11 uses an injected generated-image loader with loading and retry feedback, then compares the downloaded bytes to the source photo with a split constrained to 12-88 percent. It does not use `AsyncImage` or a shared cached session. Looks upload and image-download sessions use ephemeral configurations with no `URLCache`, background transfer, cookie persistence, or sensitive URL/body logging; downloaded bytes remain in the draft and are released on cancellation, retake, reset, memory warning, or termination. The comparison exposes a native adjustable value and drag interaction; VoiceOver and keyboard users can increment or decrement it without relying on the drag gesture.
+`LiveLooksService` is an actor and owns one non-persistent remote session for the current `PreparedPhoto.id`. The session retains only the exact decimal-string selfie ID, whether analysis was accepted, the completed response needed for mapping, the selected transformation, and the generation ID. Re-entering the same high-level operation resumes known polling or image-download work; starting with another photo replaces the session. This private correlation keeps wire values out of screen state while avoiding duplicate POSTs after a response has supplied its remote ID.
 
-The mock client returns deterministic fixtures based on the supplied sample image and can inject delay or each documented failure for previews, unit tests, and UI tests. The live client remains fail-closed until base URL, authentication, image policy, and DTO mappings are complete.
+Every remote identifier is represented internally as a nonempty ASCII decimal string. A checked conversion requires a positive `Int64` before writing the numeric `selfieId` and `transformationIds` fields still declared by the request contract; URL path and query components use the exact decimal string. String response IDs are never parsed through floating-point storage, and the migrated analysis acknowledgement uses a string `selfieId`.
+
+The analysis operation performs this sequence:
+
+1. Obtain the current Firebase user's ID token through an injected async token provider and send it as `Authorization: Bearer <token>`.
+2. Validate the prepared JPEG is no larger than 10,485,760 bytes and upload it as a sanitized `selfie.jpg` `file` part to `POST /api/v1/selfies`.
+3. Retain the exact string `SelfieResponse.id`, trigger `POST /api/v1/selfies/{id}/analysis`, and do not derive correlation from a precision-losing numeric acknowledgement.
+4. Poll `GET /api/v1/selfies/{id}` every three seconds for at most 40 attempts. Explicit `null` analysis values are incomplete; completion requires non-null `deepface`, `symmetry`, `shape`, `mesh`, and `ratio` blocks.
+5. Validate nonempty `shape.primaryShape`, a finite `symmetry.overallScore` in `0...100`, and an HTTPS `mesh.imageUrl`; download and decode the annotated mesh through the same non-persistent sensitive-image policy before returning `HarmonyResult`.
+
+The generation operation begins only after the user requests a matching hairstyle:
+
+1. Call `GET /api/v1/transformations/search` with the retained `selfieId` and `categories=HAIRSTYLE`; do not call the diagnostic `/users/me` endpoint.
+2. Select the first ranked response, which the backend guarantees costs one credit, and require a valid ID, `category == HAIRSTYLE`, `creditPrice == 1`, nonempty `displayName`, and nonempty static `description`. A malformed first response fails closed; the app does not skip to a lower-ranked result.
+3. Send `POST /api/v1/generations` with exactly that selfie ID and one transformation ID. The JSON request contains no questionnaire values.
+4. Poll `GET /api/v1/generations/{id}` every three seconds for at most 40 attempts. `PENDING`, `SUBMITTING`, `AWAITING_RESULT`, and `PROCESSING` continue; `FAILED` and `PARTIALLY_COMPLETED` fail the one-item onboarding request; `COMPLETED` succeeds only when the item matching the selected `transformationId` is also complete with a valid HTTPS `resultImageUrl`. Item array order is not significant.
+5. Download and validate the selected generated image through the non-persistent sensitive-image loader before returning a presentation-ready `GeneratedLook`.
+
+Retry behavior depends on the furthest confirmed remote stage:
+
+| Failure point | Retry behavior |
+|---|---|
+| Token acquisition, validation, search, or an explicitly rejected request | A user Retry starts that safe stage again. |
+| Analysis polling timeout or mesh download failure after a known selfie ID | Retain the selfie ID; a user Retry receives a fresh 40-poll budget or retries only the mesh download without re-uploading or re-triggering accepted analysis. |
+| Generation polling timeout or generated-image download failure after a known generation ID | Retain the generation ID; a user Retry receives a fresh 40-poll budget or retries only the image download without creating or charging another order. |
+| Ambiguous `POST /generations` outcome without a generation ID | Never replay the create request automatically or through the generic Retry action; show non-retryable safe feedback because duplicate charging cannot be excluded. |
+| Terminal `FAILED` or `PARTIALLY_COMPLETED` generation | Show non-retryable safe feedback and do not create a replacement order while refund semantics remain undefined. |
+
+Each invocation owns at most 40 polls. Cooperative cancellation stops its timer immediately but retains confirmed remote IDs in the actor; an explicit safe Retry starts a new 40-poll budget. Entering screen 12, entering Main, clearing the flow, a memory warning, or starting another photo clears all local session correlation and every photo-derived draft value, including prepared display/upload bytes, annotated-mesh bytes, generated-image bytes, and mapped results. No polling continues while its structured task is cancelled.
+
+Screens 08 and 10 initiate one cancellable async operation on entry and expose loading, recoverable failure, and non-retryable failure phases. Raw transport and backend `errorMessage` values are mapped to safe user-facing messages. Screen 09 renders the downloaded annotated mesh, face shape, and harmony score. Screen 11 compares the generated bytes already returned by `LooksClient` to the source photo with a split constrained to 12-88 percent; it performs no network request and does not use `AsyncImage`. Looks upload and image-download sessions use ephemeral configurations with no `URLCache`, background transfer, cookie persistence, or sensitive URL/body logging. Mesh and generated-image responses accept only HTTPS redirects whose final URL is also HTTPS, an `image/*` content type, at most 12 MiB of encoded bytes, a decodable raster image, positive dimensions no greater than 8192 pixels on either axis, and no more than 40 million decoded pixels. Downloaded bytes remain in the draft and are released on cancellation, retake, screen-12/Main entry, reset, memory warning, or termination. The comparison exposes a native adjustable value and drag interaction; VoiceOver and keyboard users can increment or decrement it without relying on the drag gesture.
+
+The mock client returns deterministic annotated-image, shape, score, style-name, static-description, and generated-image byte fixtures and can inject delay or each documented failure for previews, unit tests, and UI tests. The live client remains fail-closed until the base URL, Firebase user, image policy, legal URLs, and facial-data disclosures are complete.
 
 ### 7. Authenticate first, then bind purchases to the Firebase UID
 
@@ -183,7 +216,7 @@ The HTML paywall is used only to understand intent. A custom SwiftUI hard paywal
 
 ### 9. Make service mode explicit and fail closed outside development
 
-`AppConfiguration` validates Firebase/Google, RevenueCat, legal URL, and Looks settings before constructing dependencies:
+`AppConfiguration` validates Firebase/Google, RevenueCat, legal URL, and Looks settings before constructing dependencies. Looks authentication is the current Firebase user's ID token obtained at request time; no static Looks credential is stored in app configuration:
 
 | Mode | Selection | Behavior |
 |---|---|---|
@@ -211,7 +244,8 @@ Unit tests drive the state model with deterministic clients, controllable suspen
 
 ## Risks / Trade-offs
 
-- **[Unknown REST contracts]** A guessed request or guide model could require rework -> keep wire DTOs out of views, make mock results presentation-ready, and leave live transport fail-closed until OpenAPI arrives.
+- **[Deferred backend edge semantics]** Ambiguous POST outcomes, failed paid generations, and refunds are not yet defined -> never automatically replay an ambiguous side-effecting POST, retain known remote IDs in memory, and map unsupported outcomes to safe failure until the backend contract expands.
+- **[Snowflake identifier precision]** Numeric JSON consumers can round remote IDs -> retain response identifiers as decimal strings, require the analysis acknowledgement to migrate to a string, and convert only validated request fields that the current API still declares as `int64`.
 - **[Placeholder configuration reaches production]** Test credentials or simulated purchases could leak into Release -> require explicit mode selection, validate all live settings centrally, and never fall back to mock mode outside explicit development/test execution.
 - **[Wrong RevenueCat identity or stale local access]** A user could be incorrectly admitted or blocked -> serialize Firebase UID binding before customer-info evaluation and treat only the active entitlement as authorization.
 - **[RevenueCat remote paywall adds dismissal]** Remote changes could violate the hard-paywall contract -> embed rather than present, disable app-owned dismissal, and add configured-paywall acceptance checks before release.
@@ -229,7 +263,7 @@ Unit tests drive the state model with deterministic clients, controllable suspen
 1. Lower all app/test deployment targets to iOS 17, limit the app to portrait iPhone, add packages/configuration examples, and introduce optimized assets without adding the 4K source to the target.
 2. Replace the template SwiftData root with the state model, gate store, dependency construction, mock clients, and empty Main shell.
 3. Build screens and native media/photo bridges against mock clients, then add real Firebase/Google and RevenueCat adapters behind validated live configuration.
-4. Add the fail-closed Looks transport shell; complete its DTO mapping only when the OpenAPI contracts arrive.
+4. Replace the fail-closed Looks shell with the Firebase-authenticated upload, analysis polling, hairstyle search, generation polling, and response-mapping workflow while preserving the mock boundary.
 5. Verify unit, UI, accessibility, device-size, lifecycle, and package-build behavior before enabling live mode.
 
 There is no user-data migration because the existing `Item` model is template data. Routing keys are versioned and may be cleared safely during development. Before live upload is enabled, rollback removes the new root, packages, configuration, and assets and restores the prior template target with no facial-data cleanup. After live upload is enabled, rollback and cleanup must follow the approved backend retention/deletion contract and disclosures; live release remains blocked until those inputs exist.
@@ -238,6 +272,6 @@ There is no user-data migration because the existing `Item` model is template da
 
 - What Firebase plist, Google client ID/URL scheme, Apple team/capability setup, and provider-console configuration will be supplied?
 - What RevenueCat public SDK key, Firebase UID identity policy, entitlement identifier, offering, products, and remote paywall configuration define access?
-- What base URL, authentication, image limits, request fields, response DTOs, guide-coordinate system, and generated-image lifetime apply to `/analysis` and `/selfie`?
+- What final failure/refund/idempotency behavior, result lifetime, and deletion mechanism apply after the implemented Looks happy path?
 - What final Terms of Use and Privacy Policy URLs and facial-image retention/deletion disclosures must ship?
 - What measured bitrate/codec settings should the optimized welcome derivative use, and what final app icon or brand assets replace placeholders?

@@ -108,51 +108,36 @@ final class MockServiceState {
                     remainingGenerationFailures = max(remainingGenerationFailures - 1, 0)
                     throw ServiceFailure.transport("We couldn't create your look. Try again.")
                 }
+                if arguments.contains("--mock-image-failure") || remainingImageFailures > 0 {
+                    remainingImageFailures = max(remainingImageFailures - 1, 0)
+                    throw ServiceFailure.transport("The generated image couldn't be loaded. Try again.")
+                }
                 return .mock
-            }
+            },
+            clearSession: { _ in }
         )
-    }
-
-    func generatedImageClient() -> GeneratedImageClient {
-        GeneratedImageClient { [self] _ in
-            try await Task.sleep(for: .milliseconds(250))
-            try Task.checkCancellation()
-            if arguments.contains("--mock-image-failure") || remainingImageFailures > 0 {
-                remainingImageFailures = max(remainingImageFailures - 1, 0)
-                throw ServiceFailure.transport("The generated image couldn't be loaded. Try again.")
-            }
-            guard let data = UIImage(named: "GeneratedLook")?.jpegData(compressionQuality: 0.9) else {
-                throw ServiceFailure.transport("The generated fixture is unavailable.")
-            }
-            return data
-        }
     }
 }
 
 extension HarmonyResult {
-    static let mock = HarmonyResult(
-        faceShapeTitle: "Oval",
-        faceShapeDescription: "Balanced proportions with slightly more length than width.",
-        harmonyTitle: "Naturally balanced",
-        harmonyDescription: "Small left-to-right differences are normal.",
-        guides: [
-            HarmonyGuide(id: "eyes", points: [.init(x: 0.23, y: 0.41), .init(x: 0.77, y: 0.41)]),
-            HarmonyGuide(id: "mid", points: [.init(x: 0.19, y: 0.58), .init(x: 0.81, y: 0.58)]),
-            HarmonyGuide(id: "outline", points: [
-                .init(x: 0.31, y: 0.19), .init(x: 0.18, y: 0.48),
-                .init(x: 0.30, y: 0.82), .init(x: 0.50, y: 0.91),
-                .init(x: 0.70, y: 0.82), .init(x: 0.82, y: 0.48),
-                .init(x: 0.69, y: 0.19), .init(x: 0.31, y: 0.19)
-            ])
-        ]
-    )
+    @MainActor
+    static var mock: HarmonyResult {
+        HarmonyResult(
+            annotatedImageData: UIImage(named: "SamplePortrait")?.jpegData(compressionQuality: 0.9) ?? Data(),
+            faceShape: "Oval",
+            harmonyScore: 88.6
+        )
+    }
 }
 
 extension GeneratedLook {
-    static let mock = GeneratedLook(
-        imageURL: URL(string: "https://mock.notmeyet.invalid/generated-look.jpg")!,
-        styleName: "Textured crop",
-        explanation: "The added texture creates width around the upper face, while shorter sides keep the overall shape balanced."
-    )
+    @MainActor
+    static var mock: GeneratedLook {
+        GeneratedLook(
+            imageData: UIImage(named: "GeneratedLook")?.jpegData(compressionQuality: 0.9) ?? Data(),
+            styleName: "Textured crop",
+            styleDescription: "A short, textured style with clean sides and natural movement on top."
+        )
+    }
 }
 #endif

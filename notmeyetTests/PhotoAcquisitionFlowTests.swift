@@ -62,7 +62,7 @@ struct PhotoAcquisitionFlowTests {
         await model.loadLibraryPhoto { sourceData }
 
         #expect(await recorder.receivedData() == sourceData)
-        #expect(await recorder.receivedPolicy() == .mock)
+        #expect(await recorder.receivedPolicy() == .current)
         #expect(model.phase == .onboarding(.photoReview))
         #expect(model.draft.preparedPhoto == expectedPhoto)
         #expect(model.photoError == nil)
@@ -115,6 +115,25 @@ struct PhotoAcquisitionFlowTests {
         #expect(model.phase == .onboarding(.photoPreparation))
         #expect(model.photoError == "Camera access is off. Allow it in Settings or choose a library photo.")
         #expect(model.shouldOfferCameraSettings)
+    }
+
+    @Test("Restricted permission stays on screen 06 with library guidance")
+    @MainActor
+    func restrictedPermission() async {
+        let cameraAccess = CameraAccessClient(
+            isAvailable: { true },
+            authorizationState: { .restricted },
+            requestAccess: { false }
+        )
+        let model = OnboardingFlowModel(
+            dependencies: TestDependencyHarness().makeDependencies(cameraAccess: cameraAccess)
+        )
+        model.phase = .onboarding(.photoPreparation)
+
+        #expect(await model.requestCamera() == false)
+        #expect(model.phase == .onboarding(.photoPreparation))
+        #expect(model.photoError == "Camera access is restricted. Choose a photo from your library instead.")
+        #expect(!model.shouldOfferCameraSettings)
     }
 
     @Test("Unavailable camera fails before checking authorization")

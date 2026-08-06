@@ -15,8 +15,6 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
     case screen09 = "09"
     case screen10Loading = "10-loading"
     case screen10Error = "10-error"
-    case screen11Loading = "11-loading"
-    case screen11Error = "11-error"
     case screen11Success = "11-success"
     case screen12Mock = "12-mock"
     case screen13 = "13"
@@ -49,7 +47,8 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
         model.draft = OnboardingDraft()
         model.analysisPhase = .idle
         model.generationPhase = .idle
-        model.generatedImagePhase = .idle
+        model.analysisCanRetry = true
+        model.generationCanRetry = true
         model.authenticationError = nil
         model.purchaseError = nil
         model.photoError = nil
@@ -96,21 +95,8 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
             guard seedHarmony(in: model) else { return }
             model.generationPhase = .failed("We couldn't create your look. Try again.")
             model.phase = .onboarding(.generationProcessing)
-        case .screen11Loading:
-            guard seedGeneratedLook(in: model) else { return }
-            model.generatedImagePhase = .loading
-            model.phase = .onboarding(.firstResult)
-        case .screen11Error:
-            guard seedGeneratedLook(in: model) else { return }
-            model.generatedImagePhase = .failed("The generated image couldn't be loaded. Try again.")
-            model.phase = .onboarding(.firstResult)
         case .screen11Success:
-            guard seedGeneratedLook(in: model), let data = fixtureImageData(named: "GeneratedLook") else {
-                showMissingFixture(in: model)
-                return
-            }
-            model.draft.generatedImageData = data
-            model.generatedImagePhase = .loaded(data)
+            guard seedGeneratedLook(in: model) else { return }
             model.phase = .onboarding(.firstResult)
         case .screen12Mock, .screen12ProductionShell:
             model.phase = .onboarding(.paywall)
@@ -153,11 +139,6 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
         model.draft.generatedLook = .mock
         model.generationPhase = .loaded(.mock)
         return true
-    }
-
-    @MainActor
-    private func fixtureImageData(named name: String) -> Data? {
-        UIImage(named: name)?.jpegData(compressionQuality: 0.9)
     }
 
     @MainActor

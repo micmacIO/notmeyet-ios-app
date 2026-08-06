@@ -125,6 +125,8 @@ private struct ConfigurationUnavailableView: View {
 }
 
 struct MainAppSkeletonView: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+
     var body: some View {
         VStack(spacing: 12) {
             Text("NotMeYet")
@@ -132,11 +134,11 @@ struct MainAppSkeletonView: View {
                 .nmyRouteHeading(id: "main")
             Text("Main App")
                 .font(NMYDesign.Typography.control)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(NMYDesign.Accessibility.mutedColor(for: contrast))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(NMYDesign.background)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("main.skeleton")
     }
 }
@@ -149,7 +151,6 @@ struct MainAppSkeletonView: View {
         revenueCatAPIKey: "",
         revenueCatEntitlementID: "pro",
         looksAPIBaseURL: nil,
-        looksAuthToken: "",
         termsURL: nil,
         privacyURL: nil,
         facialDataDisclosuresApproved: false

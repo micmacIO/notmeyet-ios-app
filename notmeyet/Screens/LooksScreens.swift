@@ -11,7 +11,7 @@ struct AnalysisProcessingScreen: View {
             title: "Finding your natural harmony...",
             subtitle: "We're noticing how your features work together to surface hairstyles that feel balanced.",
             phase: model.analysisPhase,
-            retry: model.retryAnalysis
+            retry: model.analysisCanRetry ? { model.retryAnalysis() } : nil
         )
     }
 }
@@ -31,23 +31,30 @@ struct HarmonySnapshotScreen: View {
             ScreenHeading(title: "Here's what works in harmony")
                 .padding(.bottom, 16)
 
-            if let imageData = model.draft.preparedPhoto?.displayData,
-                let image = UIImage(data: imageData),
-                let result = model.draft.harmonyResult {
-                HarmonyImageView(image: image, guides: result.guides)
+            if let result = model.draft.harmonyResult,
+               let image = UIImage(data: result.annotatedImageData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
                     .frame(height: 260)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(.rect(cornerRadius: 22))
+                    .accessibilityLabel("Annotated facial harmony image")
+                    .accessibilityIdentifier("harmony.annotatedImage")
 
                 resultLayout {
                     ResultCard(
                         eyebrow: "Your face shape",
-                        title: result.faceShapeTitle,
-                        detail: result.faceShapeDescription
+                        title: result.faceShape
                     )
+                    .accessibilityIdentifier("harmony.faceShape")
                     ResultCard(
                         eyebrow: "Overall harmony",
-                        title: result.harmonyTitle,
-                        detail: result.harmonyDescription
+                        title: harmonyScore(result.harmonyScore)
                     )
+                    .accessibilityLabel("Overall harmony")
+                    .accessibilityValue("\(harmonyScoreValue(result.harmonyScore)) out of 100")
+                    .accessibilityIdentifier("harmony.score")
                 }
                 .padding(.top, 14)
             }
@@ -71,6 +78,14 @@ struct HarmonySnapshotScreen: View {
             AnyLayout(HStackLayout(alignment: .top, spacing: 10))
         }
     }
+
+    private func harmonyScore(_ value: Double) -> String {
+        "\(harmonyScoreValue(value)) / 100"
+    }
+
+    private func harmonyScoreValue(_ value: Double) -> String {
+        String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), value)
+    }
 }
 
 struct GenerationProcessingScreen: View {
@@ -83,7 +98,7 @@ struct GenerationProcessingScreen: View {
             title: "Creating your first NotMeYet look...",
             subtitle: "Same face. New possibility.",
             phase: model.generationPhase,
-            retry: model.retryGeneration
+            retry: model.generationCanRetry ? { model.retryGeneration() } : nil
         )
     }
 }
@@ -100,50 +115,34 @@ struct FirstResultScreen: View {
             ScreenHeading(title: "Not you yet - but should it be?")
                 .padding(.bottom, 16)
 
-            resultContent
+            if let look = model.draft.generatedLook,
+               let beforeData = model.draft.preparedPhoto?.displayData,
+               let before = UIImage(data: beforeData),
+               let after = UIImage(data: look.imageData) {
+                BeforeAfterComparison(before: before, after: after, model: model)
+            }
 
             if let look = model.draft.generatedLook {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(look.styleName).font(NMYDesign.Typography.cardTitle)
-                    Text("Why this was chosen")
+                    Text(look.styleName)
+                        .font(NMYDesign.Typography.cardTitle)
+                        .accessibilityIdentifier("result.styleName")
+                    Text("About this look")
                         .font(NMYDesign.Typography.detail.bold())
-                    Text(look.explanation)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("result.aboutHeading")
+                    Text(look.styleDescription)
                         .font(NMYDesign.Typography.detail)
                         .foregroundStyle(NMYDesign.muted)
+                        .accessibilityIdentifier("result.styleDescription")
                 }
                 .padding(.top, 14)
             }
         } actions: {
             Button("Try more") { model.tryMore() }
                 .buttonStyle(.nmyPrimary)
-                .disabled(model.draft.generatedImageData == nil)
+                .disabled(model.draft.generatedLook == nil)
                 .accessibilityIdentifier("result.tryMore")
-        }
-    }
-
-    @ViewBuilder
-    private var resultContent: some View {
-        switch model.generatedImagePhase {
-        case .idle, .loading:
-            VStack(spacing: 14) {
-                ProgressView()
-                Text("Loading your first look...")
-                    .font(NMYDesign.Typography.supporting)
-                    .foregroundStyle(NMYDesign.muted)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .nmyCard()
-            .aspectRatio(353 / 380, contentMode: .fit)
-            .accessibilityIdentifier("result.loading")
-        case .failed(let message):
-            NMYErrorPanel(message: message, retryTitle: "Try loading again", retry: model.retryGeneratedImage)
-                .frame(minHeight: 220)
-        case .loaded(let afterData):
-            if let beforeData = model.draft.preparedPhoto?.displayData,
-               let before = UIImage(data: beforeData),
-               let after = UIImage(data: afterData) {
-                BeforeAfterComparison(before: before, after: after, model: model)
-            }
         }
     }
 }
@@ -154,7 +153,7 @@ private struct ProcessingScreen<Value>: View {
     let title: String
     let subtitle: String
     let phase: OperationPhase<Value>
-    let retry: () -> Void
+    let retry: (() -> Void)?
 
     var body: some View {
         OnboardingPage(step: step) {
@@ -198,64 +197,12 @@ private struct ProcessingScreen<Value>: View {
             }
             .frame(maxWidth: .infinity)
         } actions: {
-            if case .failed = phase {
+            if case .failed = phase, let retry {
                 Button("Try again", action: retry)
                     .buttonStyle(.nmyPrimary)
                     .accessibilityIdentifier("error.retry")
             }
         }
-    }
-}
-
-private struct HarmonyImageView: View {
-    @Environment(\.colorSchemeContrast) private var contrast
-    let image: UIImage
-    let guides: [HarmonyGuide]
-
-    var body: some View {
-        GeometryReader { geometry in
-            let imageRect = aspectFitRect(for: image.size, in: CGRect(origin: .zero, size: geometry.size))
-            ZStack {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: imageRect.width, height: imageRect.height)
-                    .position(x: imageRect.midX, y: imageRect.midY)
-
-                Canvas { context, _ in
-                    for guide in guides where guide.points.count > 1 {
-                        var path = Path()
-                        if let first = guide.points.first {
-                            path.move(to: guidePoint(first, in: imageRect))
-                        }
-                        for point in guide.points.dropFirst() {
-                            path.addLine(to: guidePoint(point, in: imageRect))
-                        }
-                        context.stroke(
-                            path,
-                            with: .color(NMYDesign.accent),
-                            lineWidth: NMYDesign.Accessibility.strokeWidth(
-                                for: contrast,
-                                standard: 1.2,
-                                increased: 2.4
-                            )
-                        )
-                    }
-                }
-                .accessibilityHidden(true)
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .clipShape(.rect(cornerRadius: 22))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Your photo with facial harmony guides")
-    }
-
-    private func guidePoint(_ point: NormalizedPoint, in imageRect: CGRect) -> CGPoint {
-        CGPoint(
-            x: imageRect.minX + CGFloat(point.x) * imageRect.width,
-            y: imageRect.minY + CGFloat(point.y) * imageRect.height
-        )
     }
 }
 
@@ -277,7 +224,7 @@ private struct ResultCard: View {
     @Environment(\.colorSchemeContrast) private var contrast
     let eyebrow: String
     let title: String
-    let detail: String
+    var detail: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -285,9 +232,11 @@ private struct ResultCard: View {
                 .font(NMYDesign.Typography.micro)
                 .foregroundStyle(NMYDesign.Accessibility.mutedColor(for: contrast))
             Text(title).font(NMYDesign.Typography.cardTitle)
-            Text(detail)
-                .font(NMYDesign.Typography.micro)
-                .foregroundStyle(NMYDesign.Accessibility.mutedColor(for: contrast))
+            if let detail {
+                Text(detail)
+                    .font(NMYDesign.Typography.micro)
+                    .foregroundStyle(NMYDesign.Accessibility.mutedColor(for: contrast))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .nmyCard(padding: 13)
@@ -318,11 +267,10 @@ private struct BeforeAfterComparison: View {
                             Rectangle().fill(.white).frame(width: 2)
                         }
                     HStack {
-                        Text("Before")
+                        comparisonLabel("Before")
                         Spacer()
-                        Text("After")
+                        comparisonLabel("After")
                     }
-                    .font(NMYDesign.Typography.detail.bold())
                     .padding(14)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
@@ -349,13 +297,12 @@ private struct BeforeAfterComparison: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Before and after hairstyle comparison")
             .accessibilityValue("\(Int(model.comparisonSplit * 100)) percent before")
-            .accessibilityAdjustableAction { direction in
-                model.setComparisonSplit(model.comparisonSplit + (direction == .increment ? 0.05 : -0.05))
-            }
+            .accessibilityAddTraits(.isImage)
             .accessibilityIdentifier("result.comparison")
 
-            Slider(value: splitBinding, in: 0.12...0.88)
+            Slider(value: splitBinding, in: 0.12...0.88, step: 0.01)
                 .tint(NMYDesign.accent)
+                .frame(minHeight: NMYDesign.minimumTarget)
                 .accessibilityLabel("Compare before and after")
                 .accessibilityValue("\(Int(model.comparisonSplit * 100)) percent before")
                 .accessibilityIdentifier("result.slider")
@@ -367,5 +314,16 @@ private struct BeforeAfterComparison: View {
             .resizable()
             .scaledToFill()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func comparisonLabel(_ title: String) -> some View {
+        Text(title)
+            .font(NMYDesign.Typography.detail.bold())
+            .foregroundStyle(NMYDesign.accentForeground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .nmyAdaptiveSurface(.black, opacity: 0.58)
+            .clipShape(.capsule)
+            .accessibilityHidden(true)
     }
 }

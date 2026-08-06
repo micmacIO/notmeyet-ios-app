@@ -23,17 +23,14 @@ struct RoutingGateClient {
 nonisolated struct LooksClient {
     var analyze: (PreparedPhoto) async throws -> HarmonyResult
     var generateLook: (PreparedPhoto, HarmonyResult?) async throws -> GeneratedLook
-}
-
-nonisolated struct GeneratedImageClient {
-    var load: (URL) async throws -> Data
+    var clearSession: @Sendable (UUID) async -> Void
 }
 
 struct ImagePreparationPolicy: Equatable, Sendable {
     let maximumLongEdge: Int
     let jpegQuality: Double
 
-    static let mock = ImagePreparationPolicy(maximumLongEdge: 2_048, jpegQuality: 0.85)
+    static let current = ImagePreparationPolicy(maximumLongEdge: 2_048, jpegQuality: 0.85)
 }
 
 nonisolated struct PhotoProcessingClient {
@@ -61,7 +58,6 @@ struct AppDependencies {
     let purchase: PurchaseClient
     let routingGate: RoutingGateClient
     let looks: LooksClient
-    let generatedImage: GeneratedImageClient
     let photoProcessing: PhotoProcessingClient
     let cameraAccess: CameraAccessClient
 }

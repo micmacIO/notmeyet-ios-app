@@ -53,6 +53,7 @@ final class ControlledLooksHarness {
     private(set) var generationInputs: [(PreparedPhoto, HarmonyResult?)] = []
     private(set) var cancelledAnalysisRequests: Set<Int> = []
     private(set) var cancelledGenerationRequests: Set<Int> = []
+    private(set) var clearedPhotoIDs: [UUID] = []
 
     private var analysisContinuations: [Int: CheckedContinuation<HarmonyResult, Error>] = [:]
     private var generationContinuations: [Int: CheckedContinuation<GeneratedLook, Error>] = [:]
@@ -62,7 +63,8 @@ final class ControlledLooksHarness {
     func client() -> LooksClient {
         LooksClient(
             analyze: { [self] photo in try await beginAnalysis(photo) },
-            generateLook: { [self] photo, harmony in try await beginGeneration(photo, harmony) }
+            generateLook: { [self] photo, harmony in try await beginGeneration(photo, harmony) },
+            clearSession: { [weak self] photoID in await self?.recordClear(photoID) }
         )
     }
 
@@ -97,6 +99,10 @@ final class ControlledLooksHarness {
         generationContinuations.values.forEach { $0.resume(throwing: CancellationError()) }
         analysisContinuations.removeAll()
         generationContinuations.removeAll()
+    }
+
+    private func recordClear(_ photoID: UUID) {
+        clearedPhotoIDs.append(photoID)
     }
 
     private func beginAnalysis(_ photo: PreparedPhoto) async throws -> HarmonyResult {
@@ -134,52 +140,6 @@ final class ControlledLooksHarness {
     ) {
         for count in waiters.keys.filter({ $0 <= completedCount }) {
             waiters.removeValue(forKey: count)?.forEach { $0.resume() }
-        }
-    }
-}
-
-@MainActor
-final class ControlledGeneratedImageHarness {
-    private(set) var requestedURLs: [URL] = []
-    private(set) var cancelledRequests: Set<Int> = []
-
-    private var continuations: [Int: CheckedContinuation<Data, Error>] = [:]
-    private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
-
-    func client() -> GeneratedImageClient {
-        GeneratedImageClient { [self] url in try await beginLoad(url) }
-    }
-
-    func waitForRequests(_ count: Int) async {
-        guard requestedURLs.count < count else { return }
-        await withCheckedContinuation { waiters[count, default: []].append($0) }
-    }
-
-    func succeedRequest(_ index: Int, with data: Data) {
-        continuations.removeValue(forKey: index)?.resume(returning: data)
-    }
-
-    func failRequest(_ index: Int, with error: Error) {
-        continuations.removeValue(forKey: index)?.resume(throwing: error)
-    }
-
-    func cancelOutstandingRequests() {
-        continuations.values.forEach { $0.resume(throwing: CancellationError()) }
-        continuations.removeAll()
-    }
-
-    private func beginLoad(_ url: URL) async throws -> Data {
-        let index = requestedURLs.count
-        requestedURLs.append(url)
-        for count in waiters.keys.filter({ $0 <= requestedURLs.count }) {
-            waiters.removeValue(forKey: count)?.forEach { $0.resume() }
-        }
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuations[index] = $0 }
-        } onCancel: {
-            Task { @MainActor [weak self] in
-                self?.cancelledRequests.insert(index)
-            }
         }
     }
 }

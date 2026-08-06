@@ -22,8 +22,6 @@ final class VisualVerificationUITests: XCTestCase {
         Scenario(name: "screen-09", presentation: "09", readinessIdentifier: "harmony.showStyle", heading: "Here's what works in harmony"),
         Scenario(name: "screen-10-loading", presentation: "10-loading", readinessIdentifier: "screen.heading", heading: "Creating your first NotMeYet look..."),
         Scenario(name: "screen-10-error", presentation: "10-error", readinessIdentifier: "error.panel", heading: "Creating your first NotMeYet look..."),
-        Scenario(name: "screen-11-loading", presentation: "11-loading", readinessIdentifier: "result.loading", heading: "Not you yet - but should it be?"),
-        Scenario(name: "screen-11-error", presentation: "11-error", readinessIdentifier: "error.panel", heading: "Not you yet - but should it be?"),
         Scenario(name: "screen-11-success", presentation: "11-success", readinessIdentifier: "result.comparison", heading: "Not you yet - but should it be?"),
         Scenario(name: "screen-12-mock", presentation: "12-mock", readinessIdentifier: "paywall.purchase", heading: "Meet more versions of you"),
         Scenario(name: "screen-13", presentation: "13", readinessIdentifier: "returning.startOnboarding", heading: "Welcome back"),

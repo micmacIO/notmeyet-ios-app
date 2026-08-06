@@ -36,7 +36,7 @@ struct PhotoProcessorTests {
         let processor = PhotoProcessor()
 
         await #expect(throws: ServiceFailure.self) {
-            try await processor.prepare(data: Data("not-an-image".utf8), policy: .mock)
+            try await processor.prepare(data: Data("not-an-image".utf8), policy: .current)
         }
     }
 
@@ -45,7 +45,7 @@ struct PhotoProcessorTests {
     func propagatesCancellation() async {
         let processor = PhotoProcessor()
         let task = Task {
-            try await processor.prepare(data: Data("unused".utf8), policy: .mock)
+            try await processor.prepare(data: Data("unused".utf8), policy: .current)
         }
         task.cancel()
 
@@ -62,12 +62,12 @@ struct PhotoProcessorTests {
     @Test("Mock policy emits bounded JPEG output without upscaling")
     @MainActor
     func mockPolicyBoundsJPEGOutput() async throws {
-        #expect(ImagePreparationPolicy.mock.maximumLongEdge == 2_048)
-        #expect(ImagePreparationPolicy.mock.jpegQuality == 0.85)
+        #expect(ImagePreparationPolicy.current.maximumLongEdge == 2_048)
+        #expect(ImagePreparationPolicy.current.jpegQuality == 0.85)
         let processor = PhotoProcessor()
         let large = try makeJPEG(width: 4_096, height: 2_048, orientation: 1)
 
-        let bounded = try await processor.prepare(data: large, policy: .mock)
+        let bounded = try await processor.prepare(data: large, policy: .current)
 
         #expect(bounded.pixelWidth == 2_048)
         #expect(bounded.pixelHeight == 1_024)
@@ -77,7 +77,7 @@ struct PhotoProcessorTests {
         #expect(CGImageSourceGetType(boundedSource) as String? == UTType.jpeg.identifier)
 
         let small = try makeJPEG(width: 320, height: 180, orientation: 1)
-        let unchanged = try await processor.prepare(data: small, policy: .mock)
+        let unchanged = try await processor.prepare(data: small, policy: .current)
         #expect(unchanged.pixelWidth == 320)
         #expect(unchanged.pixelHeight == 180)
     }
@@ -92,7 +92,7 @@ struct PhotoProcessorTests {
             data: source,
             policy: ImagePreparationPolicy(maximumLongEdge: 512, jpegQuality: 0.2)
         )
-        let mockQuality = try await processor.prepare(data: source, policy: .mock)
+        let mockQuality = try await processor.prepare(data: source, policy: .current)
 
         #expect(mockQuality.uploadData.count > lowQuality.uploadData.count)
     }
@@ -109,7 +109,7 @@ struct PhotoProcessorTests {
                 #expect(preparationFinished == false)
                 heartbeat()
             }
-            _ = try await processor.prepare(data: source, policy: .mock)
+            _ = try await processor.prepare(data: source, policy: .current)
             preparationFinished = true
             await heartbeatTask.value
         }

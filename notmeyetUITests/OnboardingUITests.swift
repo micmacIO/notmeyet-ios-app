@@ -162,6 +162,7 @@ final class OnboardingUITests: XCTestCase {
         tap("harmony.showStyle")
         let comparison = element("result.comparison")
         XCTAssertTrue(comparison.waitForExistence(timeout: 6))
+        assertGeneratedLookResult()
         XCTAssertEqual(comparison.label, "Before and after hairstyle comparison")
         let initialValue = comparison.value as? String
         XCTAssertTrue(initialValue?.contains("46") == true)
@@ -233,6 +234,7 @@ final class OnboardingUITests: XCTestCase {
 
         tap("error.retry", timeout: 6)
         XCTAssertTrue(app.sliders["result.slider"].waitForExistence(timeout: 6))
+        assertGeneratedLookResult()
     }
 
     func testGeneratedImageFailureRetriesSuccessfully() {
@@ -243,6 +245,7 @@ final class OnboardingUITests: XCTestCase {
 
         tap("error.retry", timeout: 6)
         XCTAssertTrue(app.sliders["result.slider"].waitForExistence(timeout: 6))
+        assertGeneratedLookResult()
     }
 
     private func launchResetApp(arguments: [String] = []) {
@@ -283,6 +286,32 @@ final class OnboardingUITests: XCTestCase {
         tap("photo.use")
         XCTAssertTrue(app.buttons["harmony.showStyle"].waitForExistence(timeout: 6))
         assertHeading("Here's what works in harmony")
+        let annotatedImage = element("harmony.annotatedImage")
+        XCTAssertTrue(annotatedImage.exists)
+        XCTAssertEqual(annotatedImage.label, "Annotated facial harmony image")
+
+        let faceShape = element("harmony.faceShape")
+        XCTAssertTrue(faceShape.exists)
+        XCTAssertTrue(faceShape.label.contains("Oval"))
+
+        let harmonyScore = element("harmony.score")
+        XCTAssertTrue(harmonyScore.exists)
+        XCTAssertEqual(harmonyScore.label, "Overall harmony")
+        XCTAssertEqual(harmonyScore.value as? String, "88.6 out of 100")
+    }
+
+    private func assertGeneratedLookResult() {
+        let styleName = element("result.styleName")
+        XCTAssertTrue(styleName.waitForExistence(timeout: 2))
+        XCTAssertEqual(styleName.label, "Textured crop")
+        XCTAssertEqual(element("result.aboutHeading").label, "About this look")
+        XCTAssertEqual(
+            element("result.styleDescription").label,
+            "A short, textured style with clean sides and natural movement on top."
+        )
+        XCTAssertFalse(app.buttons["error.retry"].exists)
+        XCTAssertFalse(app.progressIndicators["Processing"].exists)
+        XCTAssertFalse(app.staticTexts["Loading your first look."].exists)
     }
 
     private func assertHardPaywall() {

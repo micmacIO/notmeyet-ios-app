@@ -19,8 +19,6 @@ final class VisualViewportRenderTests: XCTestCase {
         ("screen-09", .screen09),
         ("screen-10-loading", .screen10Loading),
         ("screen-10-error", .screen10Error),
-        ("screen-11-loading", .screen11Loading),
-        ("screen-11-error", .screen11Error),
         ("screen-11-success", .screen11Success),
         ("screen-12-mock", .screen12Mock),
         ("screen-13", .screen13),

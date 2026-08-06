@@ -36,6 +36,19 @@ final class LiveAuthenticationService {
         )
     }
 
+    func firebaseIDToken() async throws -> String {
+        guard let user = Auth.auth().currentUser else {
+            throw ServiceFailure.authentication("Sign in again before creating your preview.")
+        }
+        do {
+            return try await user.getIDToken()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ServiceFailure.authentication("We couldn't authenticate the preview request. Try again.")
+        }
+    }
+
     private func signInWithApple() async throws -> String {
         let nonce = try AuthenticationNonce.make()
         let session = AppleAuthorizationSession(rawNonce: nonce)

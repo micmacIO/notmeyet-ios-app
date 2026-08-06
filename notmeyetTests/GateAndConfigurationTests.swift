@@ -84,7 +84,6 @@ struct AppConfigurationTests {
             revenueCatAPIKey: "",
             revenueCatEntitlementID: "pro",
             looksAPIBaseURL: nil,
-            looksAuthToken: "",
             termsURL: nil,
             privacyURL: nil,
             facialDataDisclosuresApproved: false
@@ -127,7 +126,6 @@ struct AppConfigurationTests {
             revenueCatAPIKey: "revenuecat-key",
             entitlementID: entitlementID,
             looksURL: URL(string: "https://api.example.com")!,
-            looksAuthToken: "looks-token",
             termsURL: URL(string: "https://example.com/terms")!,
             privacyURL: URL(string: "https://example.com/privacy")!,
             disclosuresApproved: true,

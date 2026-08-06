@@ -146,7 +146,7 @@ private struct MockPaywallScreen: View {
                 previewImage("SamplePortrait", label: "Before")
                 previewImage("GeneratedLook", label: "After")
             }
-            .frame(height: 176)
+            .frame(height: dynamicTypeSize.isAccessibilitySize ? nil : 176)
 
             VStack(alignment: .leading, spacing: 13) {
                 benefit("Explore all launch hairstyles")
@@ -204,24 +204,42 @@ private struct MockPaywallScreen: View {
     }
 
     private func previewImage(_ name: String, label: String) -> some View {
-        Image(name)
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity)
-            .frame(height: 176)
-            .clipped()
-            .overlay(alignment: .topLeading) {
+        VStack(alignment: .leading, spacing: NMYDesign.Spacing.small) {
+            Image(name)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 176)
+                .clipped()
+                .overlay(alignment: .topLeading) {
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        previewBadge(label)
+                            .padding(8)
+                    }
+                }
+                .clipShape(.rect(cornerRadius: NMYDesign.largeRadius))
+
+            if dynamicTypeSize.isAccessibilitySize {
                 Text(label)
                     .font(NMYDesign.Typography.eyebrow)
-                    .foregroundStyle(NMYDesign.accentForeground)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .nmyAdaptiveSurface(.black, opacity: 0.58)
-                    .clipShape(.capsule)
-                    .padding(8)
+                    .foregroundStyle(NMYDesign.foreground)
+                    .accessibilityHidden(true)
             }
-            .clipShape(.rect(cornerRadius: NMYDesign.largeRadius))
-            .accessibilityLabel("\(label) hairstyle preview")
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) hairstyle preview")
+        .accessibilityAddTraits(.isImage)
+    }
+
+    private func previewBadge(_ label: String) -> some View {
+        Text(label)
+            .font(NMYDesign.Typography.eyebrow)
+            .foregroundStyle(NMYDesign.accentForeground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .nmyAdaptiveSurface(.black, opacity: 0.58)
+            .clipShape(.capsule)
+            .accessibilityHidden(true)
     }
 
     private func benefit(_ title: String) -> some View {

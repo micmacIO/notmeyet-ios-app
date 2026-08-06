@@ -55,7 +55,7 @@ struct OnboardingFlowModelTests {
         model.isAuthenticating = true
         #expect(model.accessibilityAnnouncement?.message == "Connecting your account.")
 
-        model.generatedImagePhase = .loaded(Data([0x01]))
+        model.generationPhase = .loaded(Self.look(name: "Ready", path: "ready"))
         #expect(model.accessibilityAnnouncement?.message == "Your look is ready.")
 
         model.phase = .configurationUnavailable("Configuration failed")
@@ -332,59 +332,40 @@ struct OnboardingFlowModelTests {
         #expect(harness.events.contains("purchase") == false)
     }
 
-    @Test("Every post-photo entry records the hard-paywall gate")
+    @Test(
+        "Every post-photo paywall entry clears the exact photo lifecycle",
+        arguments: PaywallEntryRoute.allCases
+    )
     @MainActor
-    func paywallGateWritesFromEveryEntry() async {
-        for step in [OnboardingStep.photoPreparation, .harmonySnapshot, .firstResult] {
-            let harness = TestDependencyHarness()
-            harness.userID = "test-user"
-            harness.accessStatus = .inactive
-            harness.gates["test-user"] = .photo
-            let model = OnboardingFlowModel(dependencies: harness.makeDependencies())
-            await model.bootstrap()
-            model.phase = .onboarding(step)
+    func paywallGateWritesFromEveryEntry(_ route: PaywallEntryRoute) async {
+        let looks = ControlledLooksHarness()
+        let harness = TestDependencyHarness()
+        harness.userID = "test-user"
+        harness.accessStatus = .inactive
+        harness.gates["test-user"] = .photo
+        let model = OnboardingFlowModel(
+            dependencies: harness.makeDependencies(looks: looks.client())
+        )
+        await model.bootstrap()
+        let photo = Self.photo(byte: 1)
+        Self.populatePhotoDerivedContent(in: model, photo: photo)
 
-            switch step {
-            case .photoPreparation: model.skipHarmonyCheck()
-            case .harmonySnapshot: model.skipLook()
-            case .firstResult: model.tryMore()
-            default: break
-            }
-
-            #expect(model.phase == .onboarding(.paywall))
-            #expect(harness.gates["test-user"] == .paywall)
+        switch route {
+        case .skipHarmonyCheck:
+            model.phase = .onboarding(.photoPreparation)
+            model.skipHarmonyCheck()
+        case .skipLook:
+            model.phase = .onboarding(.harmonySnapshot)
+            model.skipLook()
+        case .tryMore:
+            model.phase = .onboarding(.firstResult)
+            model.tryMore()
         }
-    }
 
-    @Test("Retake clears all photo-derived state and resets comparison")
-    @MainActor
-    func retakeClearsPhotoDerivedState() {
-        let model = OnboardingFlowModel(dependencies: TestDependencyHarness().makeDependencies())
-        model.phase = .onboarding(.photoReview)
-        model.draft.preparedPhoto = Self.photo(byte: 1)
-        model.draft.harmonyResult = HarmonyResult(
-            faceShapeTitle: "Oval",
-            faceShapeDescription: "Balanced",
-            harmonyTitle: "Balanced",
-            harmonyDescription: "Balanced",
-            guides: []
-        )
-        model.draft.generatedLook = GeneratedLook(
-            imageURL: URL(string: "https://example.com/look.jpg")!,
-            styleName: "Look",
-            explanation: "Explanation"
-        )
-        model.draft.generatedImageData = Data([4])
-        model.setComparisonSplit(0.8)
-
-        model.retakePhoto()
-
-        #expect(model.phase == .onboarding(.photoPreparation))
-        #expect(model.draft.preparedPhoto == nil)
-        #expect(model.draft.harmonyResult == nil)
-        #expect(model.draft.generatedLook == nil)
-        #expect(model.draft.generatedImageData == nil)
-        #expect(model.comparisonSplit == 0.46)
+        #expect(model.phase == .onboarding(.paywall))
+        #expect(harness.gates["test-user"] == .paywall)
+        Self.expectPhotoDerivedContentCleared(in: model)
+        #expect(await eventually { looks.clearedPhotoIDs == [photo.id] })
     }
 
     @Test("Skip invalidates an in-flight photo preparation")
@@ -411,14 +392,20 @@ struct OnboardingFlowModelTests {
         #expect(model.draft.preparedPhoto == nil)
     }
 
-    @Test("A stale photo completion cannot replace the latest selection")
+    @Test("A replacement clears the prior session and retains only the latest photo bytes")
     @MainActor
-    func stalePhotoCompletionIsIgnored() async {
+    func replacementPhotoRetainsLatestSelection() async {
         let processor = ControlledPhotoProcessor()
+        let looks = ControlledLooksHarness()
         let model = OnboardingFlowModel(
-            dependencies: TestDependencyHarness().makeDependencies(photoProcessing: processor.client())
+            dependencies: TestDependencyHarness().makeDependencies(
+                looks: looks.client(),
+                photoProcessing: processor.client()
+            )
         )
         model.phase = .onboarding(.photoPreparation)
+        let originalPhoto = Self.photo(byte: 0)
+        Self.populatePhotoDerivedContent(in: model, photo: originalPhoto)
         let firstInput = Data([1])
         let secondInput = Data([2])
         let firstPhoto = Self.photo(byte: 1)
@@ -431,11 +418,21 @@ struct OnboardingFlowModelTests {
 
         await processor.succeed(secondPhoto, for: secondInput)
         await second.value
+        #expect(model.draft.preparedPhoto?.displayData == secondPhoto.displayData)
+        #expect(model.draft.preparedPhoto?.uploadData == secondPhoto.uploadData)
+        #expect(model.draft.harmonyResult?.annotatedImageData == nil)
+        #expect(model.draft.generatedLook?.imageData == nil)
+        #expect(Self.isIdle(model.analysisPhase))
+        #expect(Self.isIdle(model.generationPhase))
+        #expect(model.comparisonSplit == 0.46)
+        #expect(await eventually { looks.clearedPhotoIDs == [originalPhoto.id] })
+
         await processor.succeed(firstPhoto, for: firstInput)
         await first.value
 
         #expect(model.phase == .onboarding(.photoReview))
         #expect(model.draft.preparedPhoto == secondPhoto)
+        #expect(looks.clearedPhotoIDs == [originalPhoto.id])
     }
 
     @Test("Analysis retry cancels the prior request and ignores its stale completion")
@@ -472,26 +469,18 @@ struct OnboardingFlowModelTests {
         #expect(model.draft.harmonyResult == latestResult)
     }
 
-    @Test("Generation retry cancels the prior request and only loads the latest image")
+    @Test("Generation retry cancels the prior request and keeps only the latest presentation-ready result")
     @MainActor
     func generationRetryReplacesPriorRequest() async {
         let looks = ControlledLooksHarness()
-        let images = ControlledGeneratedImageHarness()
-        defer {
-            looks.cancelOutstandingRequests()
-            images.cancelOutstandingRequests()
-        }
+        defer { looks.cancelOutstandingRequests() }
         let model = OnboardingFlowModel(
-            dependencies: TestDependencyHarness().makeDependencies(
-                looks: looks.client(),
-                generatedImage: images.client()
-            )
+            dependencies: TestDependencyHarness().makeDependencies(looks: looks.client())
         )
         let photo = Self.photo(byte: 1)
         let harmony = Self.harmony(title: "Current")
         let staleLook = Self.look(name: "Stale", path: "stale.jpg")
         let latestLook = Self.look(name: "Latest", path: "latest.jpg")
-        let latestImage = Data([9, 8, 7])
         model.phase = .onboarding(.harmonySnapshot)
         model.draft.preparedPhoto = photo
         model.draft.harmonyResult = harmony
@@ -509,42 +498,49 @@ struct OnboardingFlowModelTests {
         #expect(await eventually { looks.cancelledGenerationRequests == [0] })
 
         looks.succeedGenerationRequest(1, with: latestLook)
-        await images.waitForRequests(1)
-        #expect(model.phase == .onboarding(.firstResult))
+        #expect(await eventually { model.phase == .onboarding(.firstResult) })
         #expect(model.draft.generatedLook == latestLook)
-        #expect(images.requestedURLs == [latestLook.imageURL])
-
-        images.succeedRequest(0, with: latestImage)
-        #expect(await eventually { model.draft.generatedImageData == latestImage })
 
         looks.succeedGenerationRequest(0, with: staleLook)
         for _ in 0..<10 { await Task.yield() }
         #expect(model.phase == .onboarding(.firstResult))
         #expect(model.draft.generatedLook == latestLook)
-        #expect(model.draft.generatedImageData == latestImage)
-        #expect(images.requestedURLs == [latestLook.imageURL])
     }
 
-    @Test("Memory pressure clears facial data and returns to photo preparation")
+    @Test(
+        "Memory pressure clears the exact photo lifecycle and cancels in-flight work",
+        arguments: InFlightLookOperation.allCases
+    )
     @MainActor
-    func memoryWarningCleanup() {
-        let harness = TestDependencyHarness()
-        let model = OnboardingFlowModel(dependencies: harness.makeDependencies())
-        model.phase = .onboarding(.photoReview)
-        model.draft.preparedPhoto = PreparedPhoto(
-            displayData: Data([0x01]),
-            uploadData: Data([0x02]),
-            pixelWidth: 10,
-            pixelHeight: 10
+    func memoryWarningCleanup(_ operation: InFlightLookOperation) async {
+        let looks = ControlledLooksHarness()
+        defer { looks.cancelOutstandingRequests() }
+        let model = OnboardingFlowModel(
+            dependencies: TestDependencyHarness().makeDependencies(looks: looks.client())
         )
-        model.draft.generatedImageData = Data([0x03])
+        let photo = Self.photo(byte: 1)
+        Self.populatePhotoDerivedContent(in: model, photo: photo)
+
+        switch operation {
+        case .analysis:
+            model.phase = .onboarding(.photoReview)
+            model.usePhoto()
+            await looks.waitForAnalysisRequests(1)
+        case .generation:
+            model.phase = .onboarding(.harmonySnapshot)
+            model.showMatchingStyle()
+            await looks.waitForGenerationRequests(1)
+        }
 
         model.handleMemoryWarning()
 
         #expect(model.phase == .onboarding(.photoPreparation))
-        #expect(model.draft.preparedPhoto == nil)
-        #expect(model.draft.generatedImageData == nil)
+        Self.expectPhotoDerivedContentCleared(in: model)
         #expect(model.photoError != nil)
+        #expect(await eventually {
+            looks.clearedPhotoIDs == [photo.id]
+                && operation.wasRequestCancelled(by: looks)
+        })
     }
 
     @Test("Termination-style model replacement restores only the photo routing gate")
@@ -561,7 +557,6 @@ struct OnboardingFlowModelTests {
         firstModel.draft.preparedPhoto = Self.photo(byte: 1)
         firstModel.draft.harmonyResult = Self.harmony(title: "Stored only in memory")
         firstModel.draft.generatedLook = Self.look(name: "Stored only in memory", path: "memory.jpg")
-        firstModel.draft.generatedImageData = Data([4])
 
         let relaunchedModel = OnboardingFlowModel(dependencies: dependencies)
         await relaunchedModel.bootstrap()
@@ -570,7 +565,6 @@ struct OnboardingFlowModelTests {
         #expect(relaunchedModel.draft.preparedPhoto == nil)
         #expect(relaunchedModel.draft.harmonyResult == nil)
         #expect(relaunchedModel.draft.generatedLook == nil)
-        #expect(relaunchedModel.draft.generatedImageData == nil)
     }
 
     @Test("Corrupt persisted gate is cleared and bootstrap falls back to Welcome")
@@ -622,41 +616,46 @@ struct OnboardingFlowModelTests {
         #expect(accessModel.phase != .main)
     }
 
-    @Test("Generated image bytes are cleared by every route-reset path")
+    @Test(
+        "Retake, Main entry, and bootstrap reset clear the exact photo lifecycle",
+        arguments: PhotoLifecycleRoute.allCases
+    )
     @MainActor
-    func generatedImageCleanupPaths() async {
-        for cleanup in CleanupPath.allCases {
-            let harness = TestDependencyHarness()
+    func photoLifecycleCleanup(_ route: PhotoLifecycleRoute) async {
+        let looks = ControlledLooksHarness()
+        let harness = TestDependencyHarness()
+        if route == .mainEntry {
             harness.userID = "test-user"
-            harness.accessStatus = cleanup == .mainReplacement ? .active : .inactive
-            let model = OnboardingFlowModel(dependencies: harness.makeDependencies())
-            model.phase = .onboarding(.firstResult)
-            model.draft.preparedPhoto = Self.photo(byte: 1)
-            model.draft.harmonyResult = Self.harmony(title: "Current")
-            model.draft.generatedLook = Self.look(name: "Current", path: "current.jpg")
-            model.draft.generatedImageData = Data([3])
-            model.setComparisonSplit(0.8)
-
-            switch cleanup {
-            case .retake:
-                model.retakePhoto()
-            case .memoryWarning:
-                model.handleMemoryWarning()
-            case .paywallReplacement:
-                model.tryMore()
-            case .mainReplacement:
-                await model.bootstrap()
-            }
-
-            #expect(model.draft.preparedPhoto == nil)
-            #expect(model.draft.harmonyResult == nil)
-            #expect(model.draft.generatedLook == nil)
-            #expect(model.draft.generatedImageData == nil)
-            #expect(model.comparisonSplit == 0.46)
-            #expect(Self.isIdle(model.analysisPhase))
-            #expect(Self.isIdle(model.generationPhase))
-            #expect(Self.isIdle(model.generatedImagePhase))
+            harness.accessStatus = .inactive
+            harness.purchaseStatus = .active
+            harness.gates["test-user"] = .paywall
         }
+        let model = OnboardingFlowModel(
+            dependencies: harness.makeDependencies(looks: looks.client())
+        )
+        if route == .mainEntry {
+            await model.bootstrap()
+            #expect(model.phase == .onboarding(.paywall))
+        }
+        let photo = Self.photo(byte: 1)
+        Self.populatePhotoDerivedContent(in: model, photo: photo)
+
+        switch route {
+        case .retake:
+            model.phase = .onboarding(.photoReview)
+            model.retakePhoto()
+            #expect(model.phase == .onboarding(.photoPreparation))
+        case .mainEntry:
+            await model.purchase()
+            #expect(model.phase == .main)
+        case .bootstrapReset:
+            model.phase = .onboarding(.firstResult)
+            await model.bootstrap()
+            #expect(model.phase == .onboarding(.welcome))
+        }
+
+        Self.expectPhotoDerivedContentCleared(in: model)
+        #expect(await eventually { looks.clearedPhotoIDs == [photo.id] })
     }
 
     @Test("Long-lived access updates do not retain the flow model")
@@ -707,20 +706,44 @@ struct OnboardingFlowModelTests {
 
     private static func harmony(title: String) -> HarmonyResult {
         HarmonyResult(
-            faceShapeTitle: title,
-            faceShapeDescription: "Face description",
-            harmonyTitle: "Harmony \(title)",
-            harmonyDescription: "Harmony description",
-            guides: []
+            annotatedImageData: Data(title.utf8),
+            faceShape: title,
+            harmonyScore: 88.6
         )
     }
 
     private static func look(name: String, path: String) -> GeneratedLook {
         GeneratedLook(
-            imageURL: URL(string: "https://example.com/\(path)")!,
+            imageData: Data(path.utf8),
             styleName: name,
-            explanation: "Explanation for \(name)"
+            styleDescription: "Description for \(name)"
         )
+    }
+
+    @MainActor
+    private static func populatePhotoDerivedContent(
+        in model: OnboardingFlowModel,
+        photo: PreparedPhoto
+    ) {
+        let harmonyResult = harmony(title: "Current")
+        let generatedLook = look(name: "Current", path: "current.jpg")
+        model.draft.preparedPhoto = photo
+        model.draft.harmonyResult = harmonyResult
+        model.draft.generatedLook = generatedLook
+        model.analysisPhase = .loaded(harmonyResult)
+        model.generationPhase = .loaded(generatedLook)
+        model.setComparisonSplit(0.8)
+    }
+
+    @MainActor
+    private static func expectPhotoDerivedContentCleared(in model: OnboardingFlowModel) {
+        #expect(model.draft.preparedPhoto?.displayData == nil)
+        #expect(model.draft.preparedPhoto?.uploadData == nil)
+        #expect(model.draft.harmonyResult?.annotatedImageData == nil)
+        #expect(model.draft.generatedLook?.imageData == nil)
+        #expect(model.comparisonSplit == 0.46)
+        #expect(isIdle(model.analysisPhase))
+        #expect(isIdle(model.generationPhase))
     }
 
     private static func isIdle<Value>(_ phase: OperationPhase<Value>) -> Bool {
@@ -728,11 +751,33 @@ struct OnboardingFlowModelTests {
         return false
     }
 
-    private enum CleanupPath: CaseIterable {
+    enum PaywallEntryRoute: CaseIterable, Sendable {
+        case skipHarmonyCheck
+        case skipLook
+        case tryMore
+    }
+
+    enum InFlightLookOperation: CaseIterable, Sendable {
+        case analysis
+        case generation
+
+        @MainActor
+        func wasRequestCancelled(by looks: ControlledLooksHarness) -> Bool {
+            switch self {
+            case .analysis:
+                looks.cancelledAnalysisRequests == [0]
+                    && looks.cancelledGenerationRequests.isEmpty
+            case .generation:
+                looks.cancelledGenerationRequests == [0]
+                    && looks.cancelledAnalysisRequests.isEmpty
+            }
+        }
+    }
+
+    enum PhotoLifecycleRoute: CaseIterable, Sendable {
         case retake
-        case memoryWarning
-        case paywallReplacement
-        case mainReplacement
+        case mainEntry
+        case bootstrapReset
     }
 }
 

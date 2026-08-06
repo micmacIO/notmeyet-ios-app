@@ -6,6 +6,14 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A30000000000000000000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000001 /* FirebaseCore */; };
+		A30000000000000000000002 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* FirebaseAuth */; };
+		A30000000000000000000003 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* GoogleSignIn */; };
+		A30000000000000000000004 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* RevenueCat */; };
+		A30000000000000000000005 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000005 /* RevenueCatUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		07D23E6230226C4C009598CB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -22,14 +30,6 @@
 			remoteInfo = notmeyet;
 		};
 /* End PBXContainerItemProxy section */
-
-/* Begin PBXBuildFile section */
-		A30000000000000000000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000001 /* FirebaseCore */; };
-		A30000000000000000000002 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* FirebaseAuth */; };
-		A30000000000000000000003 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* GoogleSignIn */; };
-		A30000000000000000000004 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* RevenueCat */; };
-		A30000000000000000000005 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000005 /* RevenueCatUI */; };
-/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		07D23E5230226C4B009598CB /* notmeyet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = notmeyet.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -226,12 +226,12 @@
 			);
 			mainGroup = 07D23E4930226C4B009598CB;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			packageReferences = (
 				A10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				A10000000000000000000002 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				A10000000000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
+			preferredProjectObjectVersion = 77;
 			productRefGroup = 07D23E5330226C4B009598CB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -432,6 +432,7 @@
 				CODE_SIGN_ENTITLEMENTS = notmeyet/notmeyet.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H36U63R3Y7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = notmeyet/Info.plist;
@@ -445,7 +446,6 @@
 				NMY_GOOGLE_CLIENT_ID = PLACEHOLDER_GOOGLE_CLIENT_ID;
 				NMY_GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.PLACEHOLDER;
 				NMY_LOOKS_API_BASE_URL = "";
-				NMY_LOOKS_AUTH_TOKEN = "";
 				NMY_PRIVACY_URL = "";
 				NMY_REVENUECAT_API_KEY = PLACEHOLDER_REVENUECAT_API_KEY;
 				NMY_REVENUECAT_ENTITLEMENT_ID = pro;
@@ -471,6 +471,7 @@
 				CODE_SIGN_ENTITLEMENTS = notmeyet/notmeyet.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H36U63R3Y7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = notmeyet/Info.plist;
@@ -484,7 +485,6 @@
 				NMY_GOOGLE_CLIENT_ID = PLACEHOLDER_GOOGLE_CLIENT_ID;
 				NMY_GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.PLACEHOLDER;
 				NMY_LOOKS_API_BASE_URL = "";
-				NMY_LOOKS_AUTH_TOKEN = "";
 				NMY_PRIVACY_URL = "";
 				NMY_REVENUECAT_API_KEY = PLACEHOLDER_REVENUECAT_API_KEY;
 				NMY_REVENUECAT_ENTITLEMENT_ID = pro;
@@ -586,6 +586,45 @@
 		};
 /* End XCBuildConfiguration section */
 
+/* Begin XCConfigurationList section */
+		07D23E4D30226C4B009598CB /* Build configuration list for PBXProject "notmeyet" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07D23E7330226C4C009598CB /* Debug */,
+				07D23E7430226C4C009598CB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		07D23E7530226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyet" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07D23E7630226C4C009598CB /* Debug */,
+				07D23E7730226C4C009598CB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		07D23E7830226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyetTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07D23E7930226C4C009598CB /* Debug */,
+				07D23E7A30226C4C009598CB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		07D23E7B30226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyetUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07D23E7C30226C4C009598CB /* Debug */,
+				07D23E7D30226C4C009598CB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		A10000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -640,45 +679,6 @@
 			productName = RevenueCatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCConfigurationList section */
-		07D23E4D30226C4B009598CB /* Build configuration list for PBXProject "notmeyet" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				07D23E7330226C4C009598CB /* Debug */,
-				07D23E7430226C4C009598CB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		07D23E7530226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyet" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				07D23E7630226C4C009598CB /* Debug */,
-				07D23E7730226C4C009598CB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		07D23E7830226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyetTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				07D23E7930226C4C009598CB /* Debug */,
-				07D23E7A30226C4C009598CB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		07D23E7B30226C4C009598CB /* Build configuration list for PBXNativeTarget "notmeyetUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				07D23E7C30226C4C009598CB /* Debug */,
-				07D23E7D30226C4C009598CB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-/* End XCConfigurationList section */
 	};
 	rootObject = 07D23E4A30226C4B009598CB /* Project object */;
 }

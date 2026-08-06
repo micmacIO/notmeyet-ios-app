@@ -95,6 +95,7 @@ private struct AuthenticationActions: View {
             } label: {
                 HStack {
                     Image(systemName: "apple.logo")
+                        .accessibilityHidden(true)
                     Text("Continue with Apple")
                 }
                 .font(NMYDesign.Typography.control)

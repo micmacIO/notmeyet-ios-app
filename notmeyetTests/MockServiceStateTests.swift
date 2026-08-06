@@ -66,10 +66,8 @@ struct MockServiceStateTests {
         await #expect(throws: ServiceFailure.self) { try await looks.analyze(photo) }
         _ = try await looks.analyze(photo)
         await #expect(throws: ServiceFailure.self) { try await looks.generateLook(photo, nil) }
-        let generated = try await looks.generateLook(photo, nil)
-        let image = fixture.state.generatedImageClient()
-        await #expect(throws: ServiceFailure.self) { try await image.load(generated.imageURL) }
-        #expect(try await image.load(generated.imageURL).isEmpty == false)
+        await #expect(throws: ServiceFailure.self) { try await looks.generateLook(photo, nil) }
+        #expect(try await looks.generateLook(photo, nil).imageData.isEmpty == false)
     }
 
     @MainActor

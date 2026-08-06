@@ -24,7 +24,6 @@ final class TestDependencyHarness {
         purchase: PurchaseClient? = nil,
         routingGate: RoutingGateClient? = nil,
         looks: LooksClient? = nil,
-        generatedImage: GeneratedImageClient? = nil,
         photoProcessing: PhotoProcessingClient? = nil,
         cameraAccess: CameraAccessClient? = nil
     ) -> AppDependencies {
@@ -35,16 +34,14 @@ final class TestDependencyHarness {
             pixelHeight: 120
         )
         let harmonyResult = HarmonyResult(
-            faceShapeTitle: "Oval",
-            faceShapeDescription: "Balanced proportions.",
-            harmonyTitle: "Balanced",
-            harmonyDescription: "Small differences are normal.",
-            guides: []
+            annotatedImageData: Data([0x02]),
+            faceShape: "Oval",
+            harmonyScore: 88.6
         )
         let generatedLook = GeneratedLook(
-            imageURL: URL(string: "https://example.com/generated.jpg")!,
+            imageData: Data([0x03]),
             styleName: "Textured crop",
-            explanation: "A balanced option."
+            styleDescription: "A short textured style."
         )
 
         return AppDependencies(
@@ -106,9 +103,9 @@ final class TestDependencyHarness {
             ),
             looks: looks ?? LooksClient(
                 analyze: { _ in harmonyResult },
-                generateLook: { _, _ in generatedLook }
+                generateLook: { _, _ in generatedLook },
+                clearSession: { _ in }
             ),
-            generatedImage: generatedImage ?? GeneratedImageClient { _ in Data([0x03]) },
             photoProcessing: photoProcessing ?? PhotoProcessingClient { _, _ in preparedPhoto },
             cameraAccess: cameraAccess ?? CameraAccessClient(
                 isAvailable: { true },
@@ -131,7 +128,6 @@ extension AppConfiguration {
         revenueCatAPIKey: "",
         revenueCatEntitlementID: "pro",
         looksAPIBaseURL: nil,
-        looksAuthToken: "",
         termsURL: nil,
         privacyURL: nil,
         facialDataDisclosuresApproved: false

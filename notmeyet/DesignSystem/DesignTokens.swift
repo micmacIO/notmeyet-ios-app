@@ -89,10 +89,13 @@ struct NMYPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(NMYDesign.Typography.control)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(
                 isEnabled ? NMYDesign.accentForeground : NMYDesign.Accessibility.mutedColor(for: contrast)
             )
             .padding(.horizontal, NMYDesign.Spacing.large)
+            .padding(.vertical, NMYDesign.Spacing.small)
             .frame(maxWidth: .infinity, minHeight: NMYDesign.controlHeight)
             .background(
                 isEnabled
@@ -121,8 +124,11 @@ struct NMYSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(NMYDesign.Typography.control)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(NMYDesign.foreground)
             .padding(.horizontal, NMYDesign.Spacing.large)
+            .padding(.vertical, NMYDesign.Spacing.small)
             .frame(maxWidth: .infinity, minHeight: NMYDesign.controlHeight)
             .background(NMYDesign.surface)
             .overlay {

@@ -37,8 +37,6 @@
 	<string>$(NMY_GOOGLE_CLIENT_ID)</string>
 	<key>NMYLooksAPIBaseURL</key>
 	<string>$(NMY_LOOKS_API_BASE_URL)</string>
-	<key>NMYLooksAuthToken</key>
-	<string>$(NMY_LOOKS_AUTH_TOKEN)</string>
 	<key>NMYPrivacyURL</key>
 	<string>$(NMY_PRIVACY_URL)</string>
 	<key>NMYRevenueCatAPIKey</key>

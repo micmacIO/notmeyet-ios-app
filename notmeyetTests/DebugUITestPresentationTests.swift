@@ -75,25 +75,9 @@ struct DebugUITestPresentationTests {
             return
         }
 
-        let imageLoading = OnboardingFlowModel(dependencies: harness.makeDependencies())
-        DebugUITestPresentation.screen11Loading.apply(to: imageLoading)
-        #expect(imageLoading.generatedImagePhase.isLoading)
-
-        let imageError = OnboardingFlowModel(dependencies: harness.makeDependencies())
-        DebugUITestPresentation.screen11Error.apply(to: imageError)
-        guard case .failed = imageError.generatedImagePhase else {
-            Issue.record("Screen 11 error did not seed a failed image phase")
-            return
-        }
-
         let imageSuccess = OnboardingFlowModel(dependencies: harness.makeDependencies())
         DebugUITestPresentation.screen11Success.apply(to: imageSuccess)
-        guard case .loaded(let data) = imageSuccess.generatedImagePhase else {
-            Issue.record("Screen 11 success did not seed a loaded image phase")
-            return
-        }
-        #expect(data.isEmpty == false)
-        #expect(imageSuccess.draft.generatedImageData == data)
+        #expect(imageSuccess.draft.generatedLook?.imageData.isEmpty == false)
         #expect(imageSuccess.comparisonSplit == 0.46)
     }
 
@@ -110,7 +94,7 @@ struct DebugUITestPresentationTests {
         case .screen08Loading, .screen08Error: .onboarding(.analysisProcessing)
         case .screen09: .onboarding(.harmonySnapshot)
         case .screen10Loading, .screen10Error: .onboarding(.generationProcessing)
-        case .screen11Loading, .screen11Error, .screen11Success: .onboarding(.firstResult)
+        case .screen11Success: .onboarding(.firstResult)
         case .screen12Mock, .screen12ProductionShell: .onboarding(.paywall)
         case .screen13: .onboarding(.returningSignIn)
         case .main: .main
@@ -120,8 +104,7 @@ struct DebugUITestPresentationTests {
     private func requiresPhoto(_ presentation: DebugUITestPresentation) -> Bool {
         switch presentation {
         case .screen07, .screen08Loading, .screen08Error, .screen09,
-             .screen10Loading, .screen10Error, .screen11Loading, .screen11Error,
-             .screen11Success:
+             .screen10Loading, .screen10Error, .screen11Success:
             true
         default:
             false
@@ -135,7 +118,6 @@ struct DebugUITestPresentationTests {
             revenueCatAPIKey: "revenuecat-key",
             revenueCatEntitlementID: "pro",
             looksAPIBaseURL: URL(string: "https://api.example.com"),
-            looksAuthToken: "looks-token",
             termsURL: URL(string: "https://example.com/terms"),
             privacyURL: URL(string: "https://example.com/privacy"),
             facialDataDisclosuresApproved: true

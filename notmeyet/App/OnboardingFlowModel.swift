@@ -31,25 +31,15 @@ final class OnboardingFlowModel {
                 announce("Creating your look.")
             case .failed(let message):
                 announce(message)
-            case .idle, .loaded:
-                break
-            }
-        }
-    }
-    var generatedImagePhase: OperationPhase<Data> = .idle {
-        didSet {
-            switch generatedImagePhase {
-            case .loading:
-                announce("Loading your first look.")
             case .loaded:
                 announce("Your look is ready.")
-            case .failed(let message):
-                announce(message)
             case .idle:
                 break
             }
         }
     }
+    var analysisCanRetry = true
+    var generationCanRetry = true
     var authenticationError: String? {
         didSet { announce(authenticationError) }
     }
@@ -90,11 +80,9 @@ final class OnboardingFlowModel {
     private var authenticationRequestID = UUID()
     private var analysisTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
-    private var imageTask: Task<Void, Never>?
     private var accessUpdatesTask: Task<Void, Never>?
     private var analysisRequestID = UUID()
     private var generationRequestID = UUID()
-    private var imageRequestID = UUID()
     private var photoPreparationRequestID = UUID()
 
     var step: OnboardingStep? {
@@ -248,12 +236,11 @@ final class OnboardingFlowModel {
         photoPreparationRequestID = requestID
         photoError = nil
         do {
-            let photo = try await dependencies.photoProcessing.prepare(data, .mock)
+            let photo = try await dependencies.photoProcessing.prepare(data, .current)
             try Task.checkCancellation()
             guard photoPreparationRequestID == requestID, step == .photoPreparation else { return }
-            draft.clearPhotoDerivedContent()
+            clearPhotoDerivedState()
             draft.preparedPhoto = photo
-            comparisonSplit = 0.46
             phase = .onboarding(.photoReview)
         } catch is CancellationError {
             return
@@ -279,8 +266,11 @@ final class OnboardingFlowModel {
                 return false
             }
             return true
-        case .denied, .restricted:
+        case .denied:
             photoError = "Camera access is off. Allow it in Settings or choose a library photo."
+            return false
+        case .restricted:
+            photoError = "Camera access is restricted. Choose a photo from your library instead."
             return false
         case .unknown:
             photoError = "The camera can't be opened right now. Choose a library photo instead."
@@ -298,13 +288,16 @@ final class OnboardingFlowModel {
         photoError = nil
         do {
             guard let data = try await loadData() else {
+                guard step == .photoPreparation else { return }
                 photoError = "This photo couldn't be opened. Choose another one."
                 return
             }
+            guard step == .photoPreparation else { return }
             await preparePhoto(data: data)
         } catch is CancellationError {
             return
         } catch {
+            guard step == .photoPreparation else { return }
             photoError = "This photo couldn't be opened. Choose another one."
         }
     }
@@ -324,7 +317,10 @@ final class OnboardingFlowModel {
         enterPaywall()
     }
 
-    func retryAnalysis() { startAnalysis() }
+    func retryAnalysis() {
+        guard analysisCanRetry else { return }
+        startAnalysis()
+    }
 
     func showMatchingStyle() {
         guard draft.preparedPhoto != nil else { return }
@@ -333,8 +329,10 @@ final class OnboardingFlowModel {
     }
 
     func skipLook() { enterPaywall() }
-    func retryGeneration() { startGeneration() }
-    func retryGeneratedImage() { startGeneratedImageLoad() }
+    func retryGeneration() {
+        guard generationCanRetry else { return }
+        startGeneration()
+    }
     func tryMore() { enterPaywall() }
 
     func purchase() async {
@@ -431,6 +429,7 @@ final class OnboardingFlowModel {
         analysisTask?.cancel()
         let requestID = UUID()
         analysisRequestID = requestID
+        analysisCanRetry = true
         analysisPhase = .loading
         analysisTask = Task { [weak self] in
             guard let self else { return }
@@ -445,6 +444,7 @@ final class OnboardingFlowModel {
                 return
             } catch {
                 guard self.analysisRequestID == requestID else { return }
+                self.analysisCanRetry = (error as? ServiceFailure)?.isRetryable ?? true
                 self.analysisPhase = .failed(self.safeMessage(from: error, fallback: "We couldn't finish your harmony check. Try again."))
             }
         }
@@ -455,6 +455,7 @@ final class OnboardingFlowModel {
         generationTask?.cancel()
         let requestID = UUID()
         generationRequestID = requestID
+        generationCanRetry = true
         generationPhase = .loading
         generationTask = Task { [weak self] in
             guard let self else { return }
@@ -465,35 +466,12 @@ final class OnboardingFlowModel {
                 self.draft.generatedLook = look
                 self.generationPhase = .loaded(look)
                 self.phase = .onboarding(.firstResult)
-                self.startGeneratedImageLoad()
             } catch is CancellationError {
                 return
             } catch {
                 guard self.generationRequestID == requestID else { return }
+                self.generationCanRetry = (error as? ServiceFailure)?.isRetryable ?? true
                 self.generationPhase = .failed(self.safeMessage(from: error, fallback: "We couldn't create your look. Try again."))
-            }
-        }
-    }
-
-    private func startGeneratedImageLoad() {
-        guard let url = draft.generatedLook?.imageURL else { return }
-        imageTask?.cancel()
-        let requestID = UUID()
-        imageRequestID = requestID
-        generatedImagePhase = .loading
-        imageTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let data = try await self.dependencies.generatedImage.load(url)
-                try Task.checkCancellation()
-                guard self.imageRequestID == requestID else { return }
-                self.draft.generatedImageData = data
-                self.generatedImagePhase = .loaded(data)
-            } catch is CancellationError {
-                return
-            } catch {
-                guard self.imageRequestID == requestID else { return }
-                self.generatedImagePhase = .failed(self.safeMessage(from: error, fallback: "The generated image couldn't be loaded. Try again."))
             }
         }
     }
@@ -548,15 +526,18 @@ final class OnboardingFlowModel {
     }
 
     private func clearPhotoDerivedState() {
+        clearRemoteSession(for: draft.preparedPhoto?.id)
         cancelPhotoDerivedOperations()
         draft.clearPhotoDerivedContent()
         analysisPhase = .idle
         generationPhase = .idle
-        generatedImagePhase = .idle
+        analysisCanRetry = true
+        generationCanRetry = true
         comparisonSplit = 0.46
     }
 
     private func applyBootstrapEvaluation(_ evaluation: AccessEvaluation) {
+        clearPhotoDerivedState()
         switch evaluation {
         case .signedOut:
             currentUserID = nil
@@ -592,11 +573,15 @@ final class OnboardingFlowModel {
     private func cancelPhotoDerivedOperations() {
         analysisTask?.cancel()
         generationTask?.cancel()
-        imageTask?.cancel()
         photoPreparationRequestID = UUID()
         analysisRequestID = UUID()
         generationRequestID = UUID()
-        imageRequestID = UUID()
+    }
+
+    private func clearRemoteSession(for photoID: UUID?) {
+        guard let photoID else { return }
+        let looks = dependencies.looks
+        Task { await looks.clearSession(photoID) }
     }
 
     private func clearPendingAuthentication() {

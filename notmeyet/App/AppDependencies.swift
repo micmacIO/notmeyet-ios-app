@@ -29,7 +29,6 @@ extension AppDependencies {
                 purchase: state.purchaseClient(),
                 routingGate: gateStore.client(),
                 looks: state.looksClient(),
-                generatedImage: state.generatedImageClient(),
                 photoProcessing: photoProcessor.client(),
                 cameraAccess: cameraAccess
             )
@@ -52,15 +51,16 @@ extension AppDependencies {
                 apiKey: configuration.revenueCatAPIKey,
                 entitlementID: configuration.revenueCatEntitlementID
             )
-            let looksService = LiveLooksService(configuration: configuration)
-            let imageLoader = GeneratedImageLoader()
+            let looksService = LiveLooksService(
+                configuration: configuration,
+                idTokenProvider: { try await authenticationService.firebaseIDToken() }
+            )
             return AppDependencies(
                 configuration: configuration,
                 authentication: authenticationService.client(),
                 purchase: purchaseService.client(),
                 routingGate: gateStore.client(),
                 looks: looksService.client(),
-                generatedImage: imageLoader.client(),
                 photoProcessing: photoProcessor.client(),
                 cameraAccess: cameraAccess
             )
@@ -71,7 +71,6 @@ extension AppDependencies {
                 revenueCatAPIKey: configuration.revenueCatAPIKey,
                 revenueCatEntitlementID: configuration.revenueCatEntitlementID,
                 looksAPIBaseURL: configuration.looksAPIBaseURL,
-                looksAuthToken: configuration.looksAuthToken,
                 termsURL: configuration.termsURL,
                 privacyURL: configuration.privacyURL,
                 facialDataDisclosuresApproved: configuration.facialDataDisclosuresApproved
@@ -114,9 +113,9 @@ extension AppDependencies {
             routingGate: gateStore.client(),
             looks: LooksClient(
                 analyze: { _ in throw ServiceFailure.configuration(message) },
-                generateLook: { _, _ in throw ServiceFailure.configuration(message) }
+                generateLook: { _, _ in throw ServiceFailure.configuration(message) },
+                clearSession: { _ in }
             ),
-            generatedImage: GeneratedImageClient { _ in throw ServiceFailure.configuration(message) },
             photoProcessing: photoProcessor.client(),
             cameraAccess: cameraAccess
         )

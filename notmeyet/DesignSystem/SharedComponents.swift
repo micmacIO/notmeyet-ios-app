@@ -103,11 +103,14 @@ struct OnboardingPage<Content: View, Actions: View>: View {
                 }
                 Spacer()
                 if let trailingNavigationTitle {
-                    Button(trailingNavigationTitle, action: trailingNavigationAction)
-                        .font(NMYDesign.Typography.detail)
-                        .foregroundStyle(NMYDesign.muted)
-                        .frame(minHeight: NMYDesign.minimumTarget)
-                        .accessibilityIdentifier(trailingNavigationIdentifier ?? "navigation.trailing")
+                    Button(action: trailingNavigationAction) {
+                        Text(trailingNavigationTitle)
+                            .font(NMYDesign.Typography.detail)
+                            .foregroundStyle(NMYDesign.muted)
+                            .frame(minHeight: NMYDesign.minimumTarget)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityIdentifier(trailingNavigationIdentifier ?? "navigation.trailing")
                 } else {
                     Color.clear.frame(width: NMYDesign.minimumTarget, height: NMYDesign.minimumTarget)
                 }
@@ -165,10 +168,12 @@ struct ScreenHeading: View {
                     .font(NMYDesign.Typography.eyebrow)
                     .tracking(1.2)
                     .foregroundStyle(NMYDesign.accent)
+                    .accessibilityHidden(true)
             }
             Text(title)
                 .font(NMYDesign.Typography.screenTitle)
                 .tracking(-0.5)
+                .accessibilityValue(eyebrow ?? "")
                 .nmyRouteHeading(id: title)
             if let subtitle {
                 Text(subtitle)
@@ -370,16 +375,22 @@ struct LegalLinksView: View {
     @ViewBuilder
     private func legalAction(_ title: String, url: URL?) -> some View {
         if let url {
-            Link(title, destination: url)
-                .foregroundStyle(NMYDesign.foreground)
-                .frame(minHeight: NMYDesign.minimumTarget)
-                .accessibilityIdentifier(title == "Terms of Use" ? "legal.terms" : "legal.privacy")
+            Link(destination: url) {
+                Text(title)
+                    .foregroundStyle(NMYDesign.foreground)
+                    .frame(minHeight: NMYDesign.minimumTarget)
+                    .contentShape(.rect)
+            }
+            .accessibilityIdentifier(title == "Terms of Use" ? "legal.terms" : "legal.privacy")
         } else {
-            Button(title) { unavailable = true }
-                .foregroundStyle(NMYDesign.foreground)
-                .underline()
-                .frame(minHeight: NMYDesign.minimumTarget)
-                .accessibilityIdentifier(title == "Terms of Use" ? "legal.terms" : "legal.privacy")
+            Button { unavailable = true } label: {
+                Text(title)
+                    .foregroundStyle(NMYDesign.foreground)
+                    .underline()
+                    .frame(minHeight: NMYDesign.minimumTarget)
+                    .contentShape(.rect)
+            }
+            .accessibilityIdentifier(title == "Terms of Use" ? "legal.terms" : "legal.privacy")
         }
     }
 }

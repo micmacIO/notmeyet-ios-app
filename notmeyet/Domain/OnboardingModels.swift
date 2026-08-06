@@ -185,28 +185,16 @@ struct PreparedPhoto: Identifiable, Equatable, Sendable {
     }
 }
 
-struct NormalizedPoint: Hashable, Sendable {
-    let x: Double
-    let y: Double
-}
-
-struct HarmonyGuide: Identifiable, Equatable, Sendable {
-    let id: String
-    let points: [NormalizedPoint]
-}
-
 struct HarmonyResult: Equatable, Sendable {
-    let faceShapeTitle: String
-    let faceShapeDescription: String
-    let harmonyTitle: String
-    let harmonyDescription: String
-    let guides: [HarmonyGuide]
+    let annotatedImageData: Data
+    let faceShape: String
+    let harmonyScore: Double
 }
 
 struct GeneratedLook: Equatable, Sendable {
-    let imageURL: URL
+    let imageData: Data
     let styleName: String
-    let explanation: String
+    let styleDescription: String
 }
 
 struct OnboardingDraft {
@@ -216,13 +204,11 @@ struct OnboardingDraft {
     var preparedPhoto: PreparedPhoto?
     var harmonyResult: HarmonyResult?
     var generatedLook: GeneratedLook?
-    var generatedImageData: Data?
 
     mutating func clearPhotoDerivedContent() {
         preparedPhoto = nil
         harmonyResult = nil
         generatedLook = nil
-        generatedImageData = nil
     }
 }
 
@@ -233,7 +219,13 @@ enum ServiceFailure: Error, Equatable, LocalizedError, Sendable {
     case identityBinding(String)
     case access(String)
     case transport(String)
+    case nonRetryable(String)
     case invalidImage(String)
+
+    var isRetryable: Bool {
+        if case .nonRetryable = self { return false }
+        return true
+    }
 
     var errorDescription: String? {
         switch self {
@@ -244,6 +236,7 @@ enum ServiceFailure: Error, Equatable, LocalizedError, Sendable {
              .identityBinding(let message),
              .access(let message),
              .transport(let message),
+             .nonRetryable(let message),
              .invalidImage(let message):
             message
         }
