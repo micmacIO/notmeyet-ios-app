@@ -65,3 +65,4 @@ fastlane/test_output
 Configuration/Secrets.xcconfig
 notmeyet/GoogleService-Info.plist
 notmeyet/Configuration/GoogleService-Info.plist
+.DS_Store
