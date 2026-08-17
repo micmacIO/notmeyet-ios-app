@@ -5,6 +5,97 @@ import Testing
 
 @Suite("Mock service outcomes")
 struct MockServiceStateTests {
+    @Test("Authentication, backend lifecycle, and entitlement remain independent")
+    @MainActor
+    func independentLifecycleState() async throws {
+        let fixture = makeState(arguments: ["--mock-entitled"])
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let authentication = fixture.state.authenticationClient()
+        let backend = fixture.state.backendUserClient()
+        let purchase = fixture.state.purchaseClient()
+
+        #expect(authentication.currentUserID() == nil)
+        #expect(try await purchase.currentAccess() == .active)
+        #expect(try await backend.resolveCurrentUser() == BackendUserResolution(
+            origin: .created,
+            onboardingCompleted: false
+        ))
+        #expect(try await backend.resolveCurrentUser() == BackendUserResolution(
+            origin: .existing,
+            onboardingCompleted: false
+        ))
+
+        try await backend.completeOnboarding()
+
+        #expect(try await backend.resolveCurrentUser() == BackendUserResolution(
+            origin: .existing,
+            onboardingCompleted: true
+        ))
+        #expect(authentication.currentUserID() == nil)
+        #expect(try await purchase.currentAccess() == .active)
+    }
+
+    @Test("Reset clears identity and backend lifecycle without deriving either from entitlement")
+    @MainActor
+    func resetLifecycleState() async throws {
+        let name = "MockServiceStateTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.set("persisted-user", forKey: "notmeyet.mock.userID")
+        defaults.set(true, forKey: "notmeyet.mock.backendUserExists")
+        defaults.set(true, forKey: "notmeyet.mock.onboardingCompleted")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let state = MockServiceState(
+            defaults: defaults,
+            arguments: ["--reset-onboarding", "--mock-entitled"]
+        )
+
+        #expect(state.authenticationClient().currentUserID() == nil)
+        #expect(try await state.purchaseClient().currentAccess() == .active)
+        #expect(try await state.backendUserClient().resolveCurrentUser() == BackendUserResolution(
+            origin: .created,
+            onboardingCompleted: false
+        ))
+    }
+
+    @Test("Backend lifecycle selectors expose every deterministic resolution outcome")
+    @MainActor
+    func backendLifecycleOutcomes() async throws {
+        for testCase in MockBackendLifecycleCase.allCases {
+            let fixture = makeState(arguments: testCase.arguments)
+            defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+            let backend = fixture.state.backendUserClient()
+
+            if let resolution = testCase.expectedResolution {
+                #expect(try await backend.resolveCurrentUser() == resolution)
+            } else {
+                await #expect(throws: testCase.expectedFailure) {
+                    try await backend.resolveCurrentUser()
+                }
+            }
+        }
+
+        let completionFailure = makeState(arguments: ["--mock-completion-failure"])
+        defer { completionFailure.defaults.removePersistentDomain(forName: completionFailure.name) }
+        await #expect(throws: ServiceFailure.transport(
+            "We couldn't finish setting up your account. Try again."
+        )) {
+            try await completionFailure.state.backendUserClient().completeOnboarding()
+        }
+    }
+
+    @Test("Fail-once access selection recovers on the next access-only attempt")
+    @MainActor
+    func failOnceAccessRecovers() async throws {
+        let fixture = makeState(arguments: ["--mock-access-fail-once"])
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let purchase = fixture.state.purchaseClient()
+
+        await #expect(throws: ServiceFailure.self) {
+            try await purchase.currentAccess()
+        }
+        #expect(try await purchase.currentAccess() == .inactive)
+    }
+
     @Test("Purchase clients expose every deterministic identity and access outcome")
     @MainActor
     func purchaseOutcomes() async throws {
@@ -80,6 +171,48 @@ struct MockServiceStateTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return (MockServiceState(defaults: defaults, arguments: arguments), defaults, name)
+    }
+}
+
+private enum MockBackendLifecycleCase: CaseIterable {
+    case createdIncomplete
+    case existingIncomplete
+    case existingComplete
+    case invalid
+    case failure
+
+    var arguments: [String] {
+        switch self {
+        case .createdIncomplete: []
+        case .existingIncomplete: ["--mock-backend-existing-incomplete"]
+        case .existingComplete: ["--mock-backend-existing-complete"]
+        case .invalid: ["--mock-backend-invalid"]
+        case .failure: ["--mock-backend-resolution-failure"]
+        }
+    }
+
+    var expectedResolution: BackendUserResolution? {
+        switch self {
+        case .createdIncomplete:
+            BackendUserResolution(origin: .created, onboardingCompleted: false)
+        case .existingIncomplete:
+            BackendUserResolution(origin: .existing, onboardingCompleted: false)
+        case .existingComplete:
+            BackendUserResolution(origin: .existing, onboardingCompleted: true)
+        case .invalid, .failure:
+            nil
+        }
+    }
+
+    var expectedFailure: ServiceFailure {
+        switch self {
+        case .invalid:
+            .transport("The account service returned an unusable response. Try again.")
+        case .failure:
+            .transport("We couldn't check your account. Try again.")
+        case .createdIncomplete, .existingIncomplete, .existingComplete:
+            .transport("Unexpected successful fixture")
+        }
     }
 }
 #endif

@@ -14,12 +14,6 @@ struct PurchaseClient {
     var accessUpdates: () -> AsyncStream<AccessStatus>
 }
 
-struct RoutingGateClient {
-    var gate: (String) -> RoutingGate
-    var setGate: (RoutingGate, String) -> Void
-    var clearAll: () -> Void
-}
-
 nonisolated struct LooksClient {
     var analyze: (PreparedPhoto) async throws -> HarmonyResult
     var generateLook: (PreparedPhoto, HarmonyResult?) async throws -> GeneratedLook
@@ -55,8 +49,8 @@ struct CameraAccessClient {
 struct AppDependencies {
     let configuration: AppConfiguration
     let authentication: AuthenticationClient
+    let backendUser: BackendUserClient
     let purchase: PurchaseClient
-    let routingGate: RoutingGateClient
     let looks: LooksClient
     let photoProcessing: PhotoProcessingClient
     let cameraAccess: CameraAccessClient

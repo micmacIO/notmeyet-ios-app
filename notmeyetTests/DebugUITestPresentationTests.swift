@@ -42,6 +42,7 @@ struct DebugUITestPresentationTests {
 
             #expect(model.phase == expectedPhase(for: presentation))
             #expect(harness.events.isEmpty)
+            #expect(model.accountOperationStage == .idle)
             if requiresPhoto(presentation) {
                 #expect(model.draft.preparedPhoto != nil)
             }
@@ -81,6 +82,48 @@ struct DebugUITestPresentationTests {
         #expect(imageSuccess.comparisonSplit == 0.46)
     }
 
+    @Test("Backend completion presentations seed their exact public state")
+    @MainActor
+    func backendCompletionStates() {
+        let harness = TestDependencyHarness()
+
+        let resolving = OnboardingFlowModel(dependencies: harness.makeDependencies())
+        DebugUITestPresentation.screen05BackendResolving.apply(to: resolving)
+        #expect(resolving.isResolvingAccount)
+        #expect(resolving.isAuthenticating == false)
+        #expect(resolving.authenticationError == nil)
+
+        let createdIncomplete = OnboardingFlowModel(dependencies: harness.makeDependencies())
+        DebugUITestPresentation.screen13CreatedIncomplete.apply(to: createdIncomplete)
+        #expect(
+            createdIncomplete.returningAccountNotice
+                == "This account hasn't completed onboarding yet. Start onboarding to create your first look."
+        )
+
+        for presentation in [
+            DebugUITestPresentation.screen06CompletionProgress,
+            .screen09CompletionProgress,
+            .screen11CompletionProgress
+        ] {
+            let model = OnboardingFlowModel(dependencies: harness.makeDependencies())
+            presentation.apply(to: model)
+            #expect(model.isCompletingOnboarding)
+            #expect(model.completionError == nil)
+            #expect(model.isVerifyingAccess == false)
+        }
+
+        let accessPending = OnboardingFlowModel(dependencies: harness.makeDependencies())
+        DebugUITestPresentation.accessPendingProgress.apply(to: accessPending)
+        #expect(accessPending.isVerifyingAccess)
+        #expect(accessPending.accessError == nil)
+
+        let accessFailure = OnboardingFlowModel(dependencies: harness.makeDependencies())
+        DebugUITestPresentation.accessFailure.apply(to: accessFailure)
+        #expect(accessFailure.isVerifyingAccess == false)
+        #expect(accessFailure.accessError == "We couldn't verify access. Try again.")
+        #expect(harness.events.isEmpty)
+    }
+
     @MainActor
     private func expectedPhase(for presentation: DebugUITestPresentation) -> AppAccessPhase {
         switch presentation {
@@ -88,15 +131,16 @@ struct DebugUITestPresentationTests {
         case .screen02: .onboarding(.primaryGoal)
         case .screen03: .onboarding(.painPoints)
         case .screen04: .onboarding(.direction)
-        case .screen05: .onboarding(.account)
-        case .screen06: .onboarding(.photoPreparation)
+        case .screen05, .screen05BackendResolving: .onboarding(.account)
+        case .screen06, .screen06CompletionProgress: .onboarding(.photoPreparation)
         case .screen07: .onboarding(.photoReview)
         case .screen08Loading, .screen08Error: .onboarding(.analysisProcessing)
-        case .screen09: .onboarding(.harmonySnapshot)
+        case .screen09, .screen09CompletionProgress: .onboarding(.harmonySnapshot)
         case .screen10Loading, .screen10Error: .onboarding(.generationProcessing)
-        case .screen11Success: .onboarding(.firstResult)
+        case .screen11Success, .screen11CompletionProgress: .onboarding(.firstResult)
         case .screen12Mock, .screen12ProductionShell: .onboarding(.paywall)
-        case .screen13: .onboarding(.returningSignIn)
+        case .screen13, .screen13CreatedIncomplete: .onboarding(.returningSignIn)
+        case .accessPendingProgress, .accessFailure: .postOnboardingAccess
         case .main: .main
         }
     }
@@ -104,7 +148,8 @@ struct DebugUITestPresentationTests {
     private func requiresPhoto(_ presentation: DebugUITestPresentation) -> Bool {
         switch presentation {
         case .screen07, .screen08Loading, .screen08Error, .screen09,
-             .screen10Loading, .screen10Error, .screen11Success:
+             .screen09CompletionProgress, .screen10Loading, .screen10Error,
+             .screen11Success, .screen11CompletionProgress:
             true
         default:
             false
@@ -120,7 +165,8 @@ struct DebugUITestPresentationTests {
             looksAPIBaseURL: URL(string: "https://api.example.com"),
             termsURL: URL(string: "https://example.com/terms"),
             privacyURL: URL(string: "https://example.com/privacy"),
-            facialDataDisclosuresApproved: true
+            facialDataDisclosuresApproved: true,
+            backendUserLifecycleContractConfirmed: true
         )
     }
 }

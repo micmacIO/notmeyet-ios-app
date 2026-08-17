@@ -10,6 +10,8 @@ final class MockServiceState {
     private var remainingAnalysisFailures: Int
     private var remainingGenerationFailures: Int
     private var remainingImageFailures: Int
+    private var remainingCompletionFailures: Int
+    private var remainingAccessFailures: Int
     private(set) var boundUserID: String?
     var accessStatus: AccessStatus
 
@@ -19,12 +21,24 @@ final class MockServiceState {
         self.remainingAnalysisFailures = arguments.contains("--mock-analysis-fail-once") ? 1 : 0
         self.remainingGenerationFailures = arguments.contains("--mock-generation-fail-once") ? 1 : 0
         self.remainingImageFailures = arguments.contains("--mock-image-fail-once") ? 1 : 0
+        self.remainingCompletionFailures = arguments.contains("--mock-completion-fail-once") ? 1 : 0
+        self.remainingAccessFailures = arguments.contains("--mock-access-fail-once") ? 1 : 0
         self.accessStatus = arguments.contains("--mock-entitled") ? .active : .inactive
         if arguments.contains("--reset-onboarding") {
             defaults.removeObject(forKey: "notmeyet.mock.userID")
+            defaults.removeObject(forKey: "notmeyet.mock.backendUserExists")
+            defaults.removeObject(forKey: "notmeyet.mock.onboardingCompleted")
         }
         if arguments.contains("--mock-authenticated") {
             defaults.set("mock-user", forKey: "notmeyet.mock.userID")
+        }
+        if arguments.contains("--mock-backend-existing-incomplete") {
+            defaults.set(true, forKey: "notmeyet.mock.backendUserExists")
+            defaults.set(false, forKey: "notmeyet.mock.onboardingCompleted")
+        }
+        if arguments.contains("--mock-backend-existing-complete") {
+            defaults.set(true, forKey: "notmeyet.mock.backendUserExists")
+            defaults.set(true, forKey: "notmeyet.mock.onboardingCompleted")
         }
     }
 
@@ -56,7 +70,8 @@ final class MockServiceState {
                 boundUserID = userID
             },
             currentAccess: { [self] in
-                if arguments.contains("--mock-access-failure") {
+                if arguments.contains("--mock-access-failure") || remainingAccessFailures > 0 {
+                    remainingAccessFailures = max(remainingAccessFailures - 1, 0)
                     throw ServiceFailure.access("We couldn't verify access. Try again.")
                 }
                 return accessStatus
@@ -86,6 +101,34 @@ final class MockServiceState {
                         continuation.yield(.inactive)
                     }
                 }
+            }
+        )
+    }
+
+    func backendUserClient() -> BackendUserClient {
+        BackendUserClient(
+            resolveCurrentUser: { [self] in
+                if arguments.contains("--mock-backend-resolution-failure") {
+                    throw ServiceFailure.transport("We couldn't check your account. Try again.")
+                }
+                if arguments.contains("--mock-backend-invalid") {
+                    throw ServiceFailure.transport("The account service returned an unusable response. Try again.")
+                }
+                let existed = defaults.bool(forKey: "notmeyet.mock.backendUserExists")
+                let completed = defaults.bool(forKey: "notmeyet.mock.onboardingCompleted")
+                defaults.set(true, forKey: "notmeyet.mock.backendUserExists")
+                return BackendUserResolution(
+                    origin: existed ? .existing : .created,
+                    onboardingCompleted: completed
+                )
+            },
+            completeOnboarding: { [self] in
+                if arguments.contains("--mock-completion-failure") || remainingCompletionFailures > 0 {
+                    remainingCompletionFailures = max(remainingCompletionFailures - 1, 0)
+                    throw ServiceFailure.transport("We couldn't finish setting up your account. Try again.")
+                }
+                defaults.set(true, forKey: "notmeyet.mock.backendUserExists")
+                defaults.set(true, forKey: "notmeyet.mock.onboardingCompleted")
             }
         )
     }

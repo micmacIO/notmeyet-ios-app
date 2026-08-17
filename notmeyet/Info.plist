@@ -33,6 +33,8 @@
 	<true/>
 	<key>NMYFacialDataDisclosuresApproved</key>
 	<string>$(NMY_FACIAL_DATA_DISCLOSURES_APPROVED)</string>
+	<key>NMYBackendUserLifecycleContractConfirmed</key>
+	<string>$(NMY_BACKEND_USER_LIFECYCLE_CONTRACT_CONFIRMED)</string>
 	<key>NMYGoogleClientID</key>
 	<string>$(NMY_GOOGLE_CLIENT_ID)</string>
 	<key>NMYLooksAPIBaseURL</key>

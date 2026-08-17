@@ -8,21 +8,33 @@ final class TestDependencyHarness {
     var accessStatus: AccessStatus = .inactive
     var purchaseStatus: AccessStatus = .active
     var restoreStatus: AccessStatus = .active
+    var backendUserOrigin: BackendUserOrigin = .existing
+    var backendOnboardingCompleted = false
     var authenticationFailure: ServiceFailure?
+    var backendResolutionFailure: ServiceFailure?
+    var completionFailure: ServiceFailure?
     var bindingFailure: ServiceFailure?
     var accessFailure: ServiceFailure?
     var purchaseFailure: ServiceFailure?
     var restoreFailure: ServiceFailure?
-    var gates: [String: RoutingGate] = [:]
-    var events: [String] = []
-    var handledURLs: [URL] = []
-    var isMonitoringAccess = false
+    private(set) var events: [String] = []
+    private(set) var handledURLs: [URL] = []
+    private(set) var authenticationRequestCount = 0
+    private(set) var backendResolutionRequestCount = 0
+    private(set) var completionRequestCount = 0
+    private(set) var bindingRequestCount = 0
+    private(set) var accessRequestCount = 0
+    private(set) var purchaseRequestCount = 0
+    private(set) var restoreRequestCount = 0
+    private(set) var accessMonitoringRequestCount = 0
+    var isMonitoringAccess: Bool { accessMonitoringRequestCount > 0 }
     private var accessContinuation: AsyncStream<AccessStatus>.Continuation?
 
     func makeDependencies(
+        configuration: AppConfiguration = .testMock,
         authentication: AuthenticationClient? = nil,
+        backendUser: BackendUserClient? = nil,
         purchase: PurchaseClient? = nil,
-        routingGate: RoutingGateClient? = nil,
         looks: LooksClient? = nil,
         photoProcessing: PhotoProcessingClient? = nil,
         cameraAccess: CameraAccessClient? = nil
@@ -45,10 +57,11 @@ final class TestDependencyHarness {
         )
 
         return AppDependencies(
-            configuration: .testMock,
+            configuration: configuration,
             authentication: authentication ?? AuthenticationClient(
                 currentUserID: { [self] in userID },
                 signIn: { [self] provider in
+                    authenticationRequestCount += 1
                     events.append("signIn:\(provider.rawValue)")
                     if let authenticationFailure { throw authenticationFailure }
                     userID = authenticatedUserID
@@ -59,17 +72,37 @@ final class TestDependencyHarness {
                     return true
                 }
             ),
+            backendUser: backendUser ?? BackendUserClient(
+                resolveCurrentUser: { [self] in
+                    backendResolutionRequestCount += 1
+                    events.append("resolveCurrentUser")
+                    if let backendResolutionFailure { throw backendResolutionFailure }
+                    return BackendUserResolution(
+                        origin: backendUserOrigin,
+                        onboardingCompleted: backendOnboardingCompleted
+                    )
+                },
+                completeOnboarding: { [self] in
+                    completionRequestCount += 1
+                    events.append("completeOnboarding")
+                    if let completionFailure { throw completionFailure }
+                    backendOnboardingCompleted = true
+                }
+            ),
             purchase: purchase ?? PurchaseClient(
                 bindUser: { [self] userID in
+                    bindingRequestCount += 1
                     events.append("bind:\(userID)")
                     if let bindingFailure { throw bindingFailure }
                 },
                 currentAccess: { [self] in
+                    accessRequestCount += 1
                     events.append("currentAccess")
                     if let accessFailure { throw accessFailure }
                     return accessStatus
                 },
                 purchase: { [self] in
+                    purchaseRequestCount += 1
                     events.append("purchase")
                     if let purchaseFailure { throw purchaseFailure }
                     accessStatus = purchaseStatus
@@ -77,6 +110,7 @@ final class TestDependencyHarness {
                     return purchaseStatus
                 },
                 restore: { [self] in
+                    restoreRequestCount += 1
                     events.append("restore")
                     if let restoreFailure { throw restoreFailure }
                     accessStatus = restoreStatus
@@ -84,22 +118,12 @@ final class TestDependencyHarness {
                     return restoreStatus
                 },
                 accessUpdates: { [self] in
-                    isMonitoringAccess = true
+                    accessMonitoringRequestCount += 1
+                    events.append("accessUpdates")
                     return AsyncStream { continuation in
                         accessContinuation = continuation
                     }
                 }
-            ),
-            routingGate: routingGate ?? RoutingGateClient(
-                gate: { [self] userID in
-                    events.append("gate:\(userID)")
-                    return gates[userID] ?? .start
-                },
-                setGate: { [self] gate, userID in
-                    events.append("setGate:\(gate.rawValue):\(userID)")
-                    gates[userID] = gate
-                },
-                clearAll: { [self] in gates.removeAll() }
             ),
             looks: looks ?? LooksClient(
                 analyze: { _ in harmonyResult },
@@ -130,7 +154,8 @@ extension AppConfiguration {
         looksAPIBaseURL: nil,
         termsURL: nil,
         privacyURL: nil,
-        facialDataDisclosuresApproved: false
+        facialDataDisclosuresApproved: false,
+        backendUserLifecycleContractConfirmed: false
     )
 }
 

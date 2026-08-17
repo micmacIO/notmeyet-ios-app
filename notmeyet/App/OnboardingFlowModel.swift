@@ -1,11 +1,28 @@
 import Foundation
 import Observation
 
+enum BackendUserEntryContext: Equatable, Sendable {
+    case launch
+    case account
+    case returningSignIn
+}
+
+enum AccountOperationStage: Equatable, Sendable {
+    case idle
+    case resolving(userID: String, context: BackendUserEntryContext)
+    case completing(userID: String, step: OnboardingStep)
+    case accessPending(userID: String)
+}
+
 @Observable
 @MainActor
 final class OnboardingFlowModel {
     var phase: AppAccessPhase = .bootstrapping {
         didSet {
+            if case .completing(_, let initiatingStep) = accountOperationStage,
+               phase != .onboarding(initiatingStep) {
+                invalidateOnboardingCompletion()
+            }
             if case .configurationUnavailable(let message) = phase {
                 announce(message)
             }
@@ -43,6 +60,13 @@ final class OnboardingFlowModel {
     var authenticationError: String? {
         didSet { announce(authenticationError) }
     }
+    var completionError: String? {
+        didSet { announce(completionError) }
+    }
+    var accessError: String? {
+        didSet { announce(accessError) }
+    }
+    var returningAccountNotice: String?
     var purchaseError: String? {
         didSet { announce(purchaseError) }
     }
@@ -52,19 +76,38 @@ final class OnboardingFlowModel {
     var accessibilityAnnouncement: NMYAccessibilityAnnouncement?
     var isAuthenticating = false {
         didSet {
-            if isAuthenticating {
+            if isAuthenticating && oldValue == false {
                 announce("Connecting your account.")
             }
         }
     }
+    var isResolvingAccount = false {
+        didSet {
+            if isResolvingAccount && oldValue == false {
+                announce("Checking your account.")
+            }
+        }
+    }
+    var isCompletingOnboarding = false {
+        didSet {
+            if isCompletingOnboarding && oldValue == false {
+                announce("Finishing your account setup.")
+            }
+        }
+    }
+    var isVerifyingAccess = false
     var isPurchasing = false {
         didSet {
-            if isPurchasing {
+            if isPurchasing && oldValue == false {
                 announce("Verifying your access.")
             }
         }
     }
     var comparisonSplit = 0.46
+
+    var isConnectingAccount: Bool {
+        isAuthenticating || isResolvingAccount
+    }
 
     #if DEBUG
     var debugUsesProductionPaywallShell = false
@@ -78,12 +121,18 @@ final class OnboardingFlowModel {
     private var pendingAuthenticationProvider: AuthenticationProvider?
     private var pendingAuthenticationIsReturning = false
     private var authenticationRequestID = UUID()
+    private var completionRequestID = UUID()
+    private var accessRequestID = UUID()
     private var analysisTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
+    private var completionTask: Task<Void, Never>?
+    private var accessTask: Task<Void, Never>?
     private var accessUpdatesTask: Task<Void, Never>?
     private var analysisRequestID = UUID()
     private var generationRequestID = UUID()
+    private var photoAcquisitionRequestID = UUID()
     private var photoPreparationRequestID = UUID()
+    private(set) var accountOperationStage: AccountOperationStage = .idle
 
     var step: OnboardingStep? {
         guard case .onboarding(let step) = phase else { return nil }
@@ -93,7 +142,6 @@ final class OnboardingFlowModel {
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
         self.accessCoordinator = AccessCoordinator(
-            authentication: dependencies.authentication,
             purchase: dependencies.purchase
         )
     }
@@ -105,19 +153,45 @@ final class OnboardingFlowModel {
         }
 
         phase = .bootstrapping
-        do {
-            let evaluation = try await accessCoordinator.evaluateCurrentAccess()
-            applyBootstrapEvaluation(evaluation)
-            startMonitoringAccessUpdates()
-        } catch is CancellationError {
+        guard let userID = dependencies.authentication.currentUserID() else {
+            currentUserID = nil
+            accountOperationStage = .idle
+            phase = .onboarding(.welcome)
             return
-        } catch {
-            phase = .configurationUnavailable(safeMessage(from: error, fallback: "We couldn't verify your access. Try again."))
         }
+        await resolveLaunchUser(userID)
     }
 
     func retryBootstrap() async {
-        await bootstrap()
+        guard case .resolving(let userID, .launch) = accountOperationStage else {
+            await bootstrap()
+            return
+        }
+        await resolveLaunchUser(userID)
+    }
+
+    private func resolveLaunchUser(_ userID: String) async {
+        phase = .bootstrapping
+        currentUserID = userID
+        let requestID = UUID()
+        authenticationRequestID = requestID
+        accountOperationStage = .resolving(userID: userID, context: .launch)
+        isResolvingAccount = true
+        do {
+            let resolution = try await dependencies.backendUser.resolveCurrentUser()
+            try requireCurrentResolution(requestID, context: .launch)
+            isResolvingAccount = false
+            try await applyResolution(resolution, userID: userID, context: .launch)
+        } catch is CancellationError {
+            guard authenticationRequestID == requestID else { return }
+            isResolvingAccount = false
+            return
+        } catch {
+            guard authenticationRequestID == requestID else { return }
+            isResolvingAccount = false
+            accountOperationStage = .resolving(userID: userID, context: .launch)
+            phase = .configurationUnavailable(safeMessage(from: error, fallback: "We couldn't verify your access. Try again."))
+        }
     }
 
     func showPrimaryGoal() { phase = .onboarding(.primaryGoal) }
@@ -140,6 +214,13 @@ final class OnboardingFlowModel {
             phase = .onboarding(.welcome)
         default: break
         }
+    }
+
+    func startOnboardingFromReturningAccount() {
+        returningAccountNotice = nil
+        authenticationError = nil
+        invalidateAuthentication()
+        phase = .onboarding(.welcome)
     }
 
     func togglePrimaryGoal(_ goal: PrimaryGoal) {
@@ -165,6 +246,8 @@ final class OnboardingFlowModel {
         pendingUserID = nil
         pendingAuthenticationProvider = provider
         pendingAuthenticationIsReturning = returning
+        returningAccountNotice = nil
+        accountOperationStage = .idle
         isAuthenticating = true
         defer {
             if authenticationRequestID == requestID {
@@ -176,24 +259,27 @@ final class OnboardingFlowModel {
             try Task.checkCancellation()
             try requireCurrentAuthentication(requestID, returning: returning)
             pendingUserID = userID
-            try await finishIdentityBinding(
+            try await resolveBackendUser(
                 userID: userID,
-                returning: returning,
+                context: returning ? .returningSignIn : .account,
                 requestID: requestID
             )
         } catch ServiceFailure.cancelled, is CancellationError {
             guard authenticationRequestID == requestID else { return }
+            isResolvingAccount = false
+            accountOperationStage = .idle
             clearPendingAuthentication()
             return
         } catch {
             guard isCurrentAuthentication(requestID, returning: returning) else { return }
+            isResolvingAccount = false
             authenticationError = safeMessage(from: error, fallback: "We couldn't sign you in. Try again.")
         }
     }
 
     func retryAuthentication() async {
-        if pendingUserID != nil {
-            await retryIdentityBinding()
+        if case .resolving = accountOperationStage, pendingUserID != nil {
+            await retryAccountResolution()
             return
         }
         guard let pendingAuthenticationProvider else { return }
@@ -203,21 +289,25 @@ final class OnboardingFlowModel {
         )
     }
 
-    func retryIdentityBinding() async {
+    func retryAccountResolution() async {
         guard let pendingUserID else { return }
         let requestID = UUID()
         authenticationRequestID = requestID
         authenticationError = nil
-        isAuthenticating = true
+        isResolvingAccount = true
         defer {
             if authenticationRequestID == requestID {
-                isAuthenticating = false
+                isResolvingAccount = false
             }
         }
+        let context: BackendUserEntryContext = pendingAuthenticationIsReturning
+            ? .returningSignIn
+            : .account
+        accountOperationStage = .resolving(userID: pendingUserID, context: context)
         do {
-            try await finishIdentityBinding(
+            try await resolveBackendUser(
                 userID: pendingUserID,
-                returning: pendingAuthenticationIsReturning,
+                context: context,
                 requestID: requestID
             )
         } catch ServiceFailure.cancelled, is CancellationError {
@@ -227,11 +317,12 @@ final class OnboardingFlowModel {
                 requestID,
                 returning: pendingAuthenticationIsReturning
             ) else { return }
-            authenticationError = safeMessage(from: error, fallback: "We couldn't connect your account to purchases. Try again.")
+            authenticationError = safeMessage(from: error, fallback: "We couldn't check your account. Try again.")
         }
     }
 
     func preparePhoto(data: Data) async {
+        guard step == .photoPreparation, isCompletingOnboarding == false else { return }
         let requestID = UUID()
         photoPreparationRequestID = requestID
         photoError = nil
@@ -251,6 +342,9 @@ final class OnboardingFlowModel {
     }
 
     func requestCamera() async -> Bool {
+        guard step == .photoPreparation, isCompletingOnboarding == false else { return false }
+        let requestID = UUID()
+        photoAcquisitionRequestID = requestID
         photoError = nil
         guard dependencies.cameraAccess.isAvailable() else {
             photoError = "A camera isn't available here. Choose a photo from your library instead."
@@ -259,9 +353,11 @@ final class OnboardingFlowModel {
 
         switch dependencies.cameraAccess.authorizationState() {
         case .authorized:
-            return true
+            return isCurrentPhotoAcquisition(requestID)
         case .notDetermined:
-            guard await dependencies.cameraAccess.requestAccess() else {
+            let granted = await dependencies.cameraAccess.requestAccess()
+            guard isCurrentPhotoAcquisition(requestID) else { return false }
+            guard granted else {
                 photoError = "Camera access is off. Allow it in Settings or choose a library photo."
                 return false
             }
@@ -285,19 +381,22 @@ final class OnboardingFlowModel {
     func loadLibraryPhoto(
         using loadData: @MainActor () async throws -> Data?
     ) async {
+        guard step == .photoPreparation, isCompletingOnboarding == false else { return }
+        let requestID = UUID()
+        photoAcquisitionRequestID = requestID
         photoError = nil
         do {
             guard let data = try await loadData() else {
-                guard step == .photoPreparation else { return }
+                guard isCurrentPhotoAcquisition(requestID) else { return }
                 photoError = "This photo couldn't be opened. Choose another one."
                 return
             }
-            guard step == .photoPreparation else { return }
+            guard isCurrentPhotoAcquisition(requestID) else { return }
             await preparePhoto(data: data)
         } catch is CancellationError {
             return
         } catch {
-            guard step == .photoPreparation else { return }
+            guard isCurrentPhotoAcquisition(requestID) else { return }
             photoError = "This photo couldn't be opened. Choose another one."
         }
     }
@@ -313,9 +412,7 @@ final class OnboardingFlowModel {
         phase = .onboarding(.photoPreparation)
     }
 
-    func skipHarmonyCheck() {
-        enterPaywall()
-    }
+    func skipHarmonyCheck() { beginOnboardingCompletion(from: .photoPreparation) }
 
     func retryAnalysis() {
         guard analysisCanRetry else { return }
@@ -328,12 +425,26 @@ final class OnboardingFlowModel {
         startGeneration()
     }
 
-    func skipLook() { enterPaywall() }
+    func skipLook() { beginOnboardingCompletion(from: .harmonySnapshot) }
     func retryGeneration() {
         guard generationCanRetry else { return }
         startGeneration()
     }
-    func tryMore() { enterPaywall() }
+    func tryMore() { beginOnboardingCompletion(from: .firstResult) }
+
+    func retryOnboardingCompletion() {
+        guard case .completing(_, let initiatingStep) = accountOperationStage else { return }
+        beginOnboardingCompletion(from: initiatingStep)
+    }
+
+    func cancelOnboardingCompletion() {
+        completionTask?.cancel()
+    }
+
+    func retryAccessHandoff() {
+        guard case .accessPending(let userID) = accountOperationStage else { return }
+        startAccessHandoff(for: userID)
+    }
 
     func purchase() async {
         await performPurchaseOperation(
@@ -386,6 +497,7 @@ final class OnboardingFlowModel {
             return
         }
         clearPhotoDerivedState()
+        invalidateOnboardingCompletion()
         photoError = "Your photo was cleared to free memory. Please choose it again."
         phase = .onboarding(.photoPreparation)
     }
@@ -394,33 +506,153 @@ final class OnboardingFlowModel {
         comparisonSplit = min(max(value, 0.12), 0.88)
     }
 
-    private func finishIdentityBinding(
+    private func resolveBackendUser(
         userID: String,
-        returning: Bool,
+        context: BackendUserEntryContext,
         requestID: UUID
     ) async throws {
         authenticationError = nil
-        if returning {
+        accountOperationStage = .resolving(userID: userID, context: context)
+        isResolvingAccount = true
+        let resolution = try await dependencies.backendUser.resolveCurrentUser()
+        try requireCurrentResolution(requestID, context: context)
+        isResolvingAccount = false
+        currentUserID = userID
+        try await applyResolution(resolution, userID: userID, context: context)
+    }
+
+    private func applyResolution(
+        _ resolution: BackendUserResolution,
+        userID: String,
+        context: BackendUserEntryContext
+    ) async throws {
+        guard resolution.origin != .created || resolution.onboardingCompleted == false else {
+            throw ServiceFailure.transport("The account service returned an unusable response. Try again.")
+        }
+
+        if resolution.onboardingCompleted {
+            clearPendingAuthentication()
+            enterAccessPending(for: userID)
+            await performAccessHandoff(
+                for: userID,
+                progressAnnouncement: "Your account is ready. Verifying your access."
+            )
+            return
+        }
+
+        accountOperationStage = .idle
+        switch context {
+        case .launch, .account:
+            announce("Your account is ready.")
+            clearPendingAuthentication()
+            phase = .onboarding(.photoPreparation)
+        case .returningSignIn:
+            clearPendingAuthentication()
+            if resolution.origin == .created {
+                let notice = "This account hasn't completed onboarding yet. Start onboarding to create your first look."
+                returningAccountNotice = notice
+                announce(notice)
+                phase = .onboarding(.returningSignIn)
+            } else {
+                announce("Your account is ready.")
+                phase = .onboarding(.photoPreparation)
+            }
+        }
+    }
+
+    private func beginOnboardingCompletion(from initiatingStep: OnboardingStep) {
+        guard step == initiatingStep, let currentUserID, isCompletingOnboarding == false else { return }
+        if initiatingStep == .photoPreparation {
+            invalidatePhotoAcquisition()
+        }
+        completionTask?.cancel()
+        let requestID = UUID()
+        completionRequestID = requestID
+        accountOperationStage = .completing(userID: currentUserID, step: initiatingStep)
+        completionError = nil
+        isCompletingOnboarding = true
+        completionTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.dependencies.backendUser.completeOnboarding()
+                try Task.checkCancellation()
+                guard self.isCurrentCompletion(requestID, step: initiatingStep) else {
+                    self.clearStaleCompletionState(for: requestID)
+                    return
+                }
+                self.isCompletingOnboarding = false
+                self.enterAccessPending(for: currentUserID)
+                await self.performAccessHandoff(
+                    for: currentUserID,
+                    progressAnnouncement: "Onboarding complete. Verifying your access."
+                )
+            } catch is CancellationError {
+                guard self.completionRequestID == requestID else { return }
+                self.isCompletingOnboarding = false
+            } catch {
+                guard self.isCurrentCompletion(requestID, step: initiatingStep) else {
+                    self.clearStaleCompletionState(for: requestID)
+                    return
+                }
+                self.isCompletingOnboarding = false
+                self.completionError = self.safeMessage(
+                    from: error,
+                    fallback: "We couldn't finish setting up your account. Try again."
+                )
+            }
+        }
+    }
+
+    private func enterAccessPending(for userID: String) {
+        accountOperationStage = .accessPending(userID: userID)
+        accessError = nil
+        clearPhotoDerivedState()
+        phase = .postOnboardingAccess
+    }
+
+    private func startAccessHandoff(for userID: String) {
+        accessTask?.cancel()
+        accessTask = Task { [weak self] in
+            await self?.performAccessHandoff(for: userID)
+        }
+    }
+
+    private func performAccessHandoff(
+        for userID: String,
+        progressAnnouncement: String = "Verifying your access."
+    ) async {
+        let requestID = UUID()
+        accessRequestID = requestID
+        accountOperationStage = .accessPending(userID: userID)
+        accessError = nil
+        isVerifyingAccess = true
+        announce(progressAnnouncement)
+        do {
             let evaluation = try await accessCoordinator.bindAndEvaluateAccess(for: userID)
-            try requireCurrentAuthentication(requestID, returning: true)
-            currentUserID = userID
+            try Task.checkCancellation()
+            guard isCurrentAccess(requestID, userID: userID) else { return }
+            isVerifyingAccess = false
+            startMonitoringAccessUpdates()
             switch evaluation {
             case .active:
-                clearPendingAuthentication()
+                accountOperationStage = .idle
+                announce("Access verified.")
                 grantMainAccess()
             case .inactive:
-                clearPendingAuthentication()
+                accountOperationStage = .idle
+                announce("Access verified. Choose a plan to continue.")
                 enterPaywall()
             case .signedOut:
-                phase = .onboarding(.returningSignIn)
+                accessError = "Sign in again to verify your access."
             }
-        } else {
-            try await accessCoordinator.bindUser(userID)
-            try requireCurrentAuthentication(requestID, returning: false)
-            currentUserID = userID
-            clearPendingAuthentication()
-            dependencies.routingGate.setGate(.photo, userID)
-            phase = .onboarding(.photoPreparation)
+        } catch is CancellationError {
+            guard accessRequestID == requestID else { return }
+            isVerifyingAccess = false
+            accessError = "Access verification was interrupted. Try again."
+        } catch {
+            guard isCurrentAccess(requestID, userID: userID) else { return }
+            isVerifyingAccess = false
+            accessError = safeMessage(from: error, fallback: "We couldn't verify your access. Try again.")
         }
     }
 
@@ -477,8 +709,6 @@ final class OnboardingFlowModel {
     }
 
     private func enterPaywall() {
-        if let currentUserID { dependencies.routingGate.setGate(.paywall, currentUserID) }
-        clearPhotoDerivedState()
         phase = .onboarding(.paywall)
     }
 
@@ -521,8 +751,19 @@ final class OnboardingFlowModel {
 
     private func grantMainAccess() {
         purchaseError = nil
-        clearPhotoDerivedState()
+        if hasPhotoDerivedState {
+            clearPhotoDerivedState()
+        }
         phase = .main
+    }
+
+    private var hasPhotoDerivedState: Bool {
+        draft.preparedPhoto != nil
+            || draft.harmonyResult != nil
+            || draft.generatedLook != nil
+            || analysisPhase.isLoading
+            || generationPhase.isLoading
+            || comparisonSplit != 0.46
     }
 
     private func clearPhotoDerivedState() {
@@ -534,25 +775,6 @@ final class OnboardingFlowModel {
         analysisCanRetry = true
         generationCanRetry = true
         comparisonSplit = 0.46
-    }
-
-    private func applyBootstrapEvaluation(_ evaluation: AccessEvaluation) {
-        clearPhotoDerivedState()
-        switch evaluation {
-        case .signedOut:
-            currentUserID = nil
-            phase = .onboarding(.welcome)
-        case .active(let userID):
-            currentUserID = userID
-            grantMainAccess()
-        case .inactive(let userID):
-            currentUserID = userID
-            switch dependencies.routingGate.gate(userID) {
-            case .start: phase = .onboarding(.welcome)
-            case .photo: phase = .onboarding(.photoPreparation)
-            case .paywall: phase = .onboarding(.paywall)
-            }
-        }
     }
 
     private func startMonitoringAccessUpdates() {
@@ -573,9 +795,20 @@ final class OnboardingFlowModel {
     private func cancelPhotoDerivedOperations() {
         analysisTask?.cancel()
         generationTask?.cancel()
-        photoPreparationRequestID = UUID()
+        invalidatePhotoAcquisition()
         analysisRequestID = UUID()
         generationRequestID = UUID()
+    }
+
+    private func invalidatePhotoAcquisition() {
+        photoAcquisitionRequestID = UUID()
+        photoPreparationRequestID = UUID()
+    }
+
+    private func isCurrentPhotoAcquisition(_ requestID: UUID) -> Bool {
+        photoAcquisitionRequestID == requestID
+            && step == .photoPreparation
+            && isCompletingOnboarding == false
     }
 
     private func clearRemoteSession(for photoID: UUID?) {
@@ -598,7 +831,12 @@ final class OnboardingFlowModel {
     private func invalidateAuthentication() {
         authenticationRequestID = UUID()
         authenticationError = nil
+        returningAccountNotice = nil
         isAuthenticating = false
+        isResolvingAccount = false
+        if case .resolving = accountOperationStage {
+            accountOperationStage = .idle
+        }
         clearPendingAuthentication()
     }
 
@@ -617,6 +855,58 @@ final class OnboardingFlowModel {
     ) -> Bool {
         let expectedStep: OnboardingStep = returning ? .returningSignIn : .account
         return authenticationRequestID == requestID && phase == .onboarding(expectedStep)
+    }
+
+    private func requireCurrentResolution(
+        _ requestID: UUID,
+        context: BackendUserEntryContext
+    ) throws {
+        guard isCurrentResolution(requestID, context: context) else {
+            throw CancellationError()
+        }
+    }
+
+    private func isCurrentResolution(
+        _ requestID: UUID,
+        context: BackendUserEntryContext
+    ) -> Bool {
+        guard authenticationRequestID == requestID else { return false }
+        switch context {
+        case .launch:
+            return phase == .bootstrapping
+        case .account:
+            return phase == .onboarding(.account)
+        case .returningSignIn:
+            return phase == .onboarding(.returningSignIn)
+        }
+    }
+
+    private func isCurrentCompletion(_ requestID: UUID, step: OnboardingStep) -> Bool {
+        completionRequestID == requestID && phase == .onboarding(step)
+    }
+
+    private func invalidateOnboardingCompletion() {
+        completionTask?.cancel()
+        completionRequestID = UUID()
+        isCompletingOnboarding = false
+        completionError = nil
+        if case .completing = accountOperationStage {
+            accountOperationStage = .idle
+        }
+    }
+
+    private func clearStaleCompletionState(for requestID: UUID) {
+        guard completionRequestID == requestID else { return }
+        isCompletingOnboarding = false
+        if case .completing = accountOperationStage {
+            accountOperationStage = .idle
+        }
+    }
+
+    private func isCurrentAccess(_ requestID: UUID, userID: String) -> Bool {
+        accessRequestID == requestID
+            && phase == .postOnboardingAccess
+            && accountOperationStage == .accessPending(userID: userID)
     }
 
     private func safeMessage(from error: Error, fallback: String) -> String {

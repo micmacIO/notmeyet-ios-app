@@ -36,6 +36,7 @@ struct AccountScreen: View {
 
 struct ReturningSignInScreen: View {
     let model: OnboardingFlowModel
+    @AccessibilityFocusState(for: .voiceOver) private var isIncompleteNoticeFocused: Bool
 
     var body: some View {
         OnboardingPage(step: .returningSignIn, showsBack: true, back: model.goBack) {
@@ -54,8 +55,28 @@ struct ReturningSignInScreen: View {
                 }
                 .padding(.top, 14)
             }
+
+            if let notice = model.returningAccountNotice {
+                Label(notice, systemImage: "person.crop.circle.badge.checkmark")
+                    .font(NMYDesign.Typography.detail)
+                    .foregroundStyle(NMYDesign.muted)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(NMYDesign.surface)
+                    .clipShape(.rect(cornerRadius: NMYDesign.mediumRadius))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityFocused($isIncompleteNoticeFocused)
+                    .accessibilityIdentifier("returning.incompleteNotice")
+                    .padding(.top, 14)
+                    .task(id: notice) {
+                        isIncompleteNoticeFocused = false
+                        await Task.yield()
+                        guard !Task.isCancelled else { return }
+                        isIncompleteNoticeFocused = true
+                    }
+            }
         } actions: {
-            Button("New to NotMeYet? Start onboarding") { model.goBack() }
+            Button("New to NotMeYet? Start onboarding") { model.startOnboardingFromReturningAccount() }
                 .font(NMYDesign.Typography.detail.weight(.semibold))
                 .foregroundStyle(NMYDesign.muted)
                 .frame(maxWidth: .infinity, minHeight: NMYDesign.minimumTarget)
@@ -105,18 +126,18 @@ private struct AuthenticationActions: View {
                 .clipShape(.rect(cornerRadius: NMYDesign.largeRadius))
             }
             .buttonStyle(.plain)
-            .disabled(model.isAuthenticating)
+            .disabled(model.isConnectingAccount)
             .accessibilityIdentifier("auth.apple")
 
             Button("Continue with Google") {
                 Task { await model.authenticate(with: .google, returning: returning) }
             }
             .buttonStyle(.nmySecondary)
-            .disabled(model.isAuthenticating)
+            .disabled(model.isConnectingAccount)
             .accessibilityIdentifier("auth.google")
 
-            if model.isAuthenticating {
-                ProgressView("Connecting your account...")
+            if model.isConnectingAccount {
+                ProgressView(model.isResolvingAccount ? "Checking your account..." : "Connecting your account...")
                     .font(NMYDesign.Typography.detail)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 6)

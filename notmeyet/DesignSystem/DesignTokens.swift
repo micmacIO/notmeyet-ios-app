@@ -7,9 +7,11 @@ nonisolated enum NMYDesign {
     static let muted = Color(red: 107 / 255, green: 107 / 255, blue: 107 / 255)
     static let border = Color(red: 229 / 255, green: 229 / 255, blue: 229 / 255)
     static let accent = Color(red: 47 / 255, green: 111 / 255, blue: 235 / 255)
+    static let accentText = Color(red: 35 / 255, green: 86 / 255, blue: 183 / 255)
     static let success = Color(red: 23 / 255, green: 163 / 255, blue: 74 / 255)
     static let warning = Color(red: 234 / 255, green: 179 / 255, blue: 8 / 255)
     static let danger = Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)
+    static let dangerText = Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255)
     static let accentForeground = Color.white
 
     static let horizontalInset: CGFloat = 20

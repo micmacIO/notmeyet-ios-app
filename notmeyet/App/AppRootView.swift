@@ -48,6 +48,8 @@ struct AppRootView: View {
                     .accessibilityIdentifier("bootstrap.progress")
             case .onboarding(let step):
                 OnboardingRouterView(step: step, model: model)
+            case .postOnboardingAccess:
+                PostOnboardingAccessView(model: model)
             case .main:
                 MainAppSkeletonView()
             case .configurationUnavailable(let message):
@@ -153,10 +155,60 @@ struct MainAppSkeletonView: View {
         looksAPIBaseURL: nil,
         termsURL: nil,
         privacyURL: nil,
-        facialDataDisclosuresApproved: false
+        facialDataDisclosuresApproved: false,
+        backendUserLifecycleContractConfirmed: false
     )
     AppRootView(dependencies: .make(configuration: configuration))
     #else
     MainAppSkeletonView()
     #endif
 }
+
+#if DEBUG
+#Preview("Backend resolving") {
+    lifecyclePreview(.screen05BackendResolving)
+}
+
+#Preview("Returning account incomplete") {
+    lifecyclePreview(.screen13CreatedIncomplete)
+}
+
+#Preview("Screen 06 completion") {
+    lifecyclePreview(.screen06CompletionProgress)
+}
+
+#Preview("Screen 09 completion") {
+    lifecyclePreview(.screen09CompletionProgress)
+}
+
+#Preview("Screen 11 completion") {
+    lifecyclePreview(.screen11CompletionProgress)
+}
+
+#Preview("Access verification") {
+    lifecyclePreview(.accessPendingProgress)
+}
+
+#Preview("Access verification failure") {
+    lifecyclePreview(.accessFailure)
+}
+
+@MainActor
+private func lifecyclePreview(_ presentation: DebugUITestPresentation) -> some View {
+    let configuration = AppConfiguration(
+        mode: .mock,
+        googleClientID: "",
+        revenueCatAPIKey: "",
+        revenueCatEntitlementID: "pro",
+        looksAPIBaseURL: nil,
+        termsURL: nil,
+        privacyURL: nil,
+        facialDataDisclosuresApproved: false,
+        backendUserLifecycleContractConfirmed: false
+    )
+    return AppRootView(
+        dependencies: .make(configuration: configuration),
+        debugPresentation: presentation
+    )
+}
+#endif

@@ -28,14 +28,9 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
 enum AppAccessPhase: Equatable, Sendable {
     case bootstrapping
     case onboarding(OnboardingStep)
+    case postOnboardingAccess
     case main
     case configurationUnavailable(String)
-}
-
-enum RoutingGate: String, Codable, CaseIterable, Sendable {
-    case start
-    case photo
-    case paywall
 }
 
 enum AuthenticationProvider: String, CaseIterable, Sendable {

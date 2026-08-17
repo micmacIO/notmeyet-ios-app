@@ -26,7 +26,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(element("main.skeleton").waitForExistence(timeout: 3))
     }
 
-    func testPaywallGatePersistsAcrossRelaunch() {
+    func testCompletedBackendOnboardingPersistsPaywallAcrossRelaunch() {
         launchResetApp()
         advanceEmptyQuestionnairesToPhotoPreparation()
         tap("photo.skipHarmony")
@@ -40,7 +40,7 @@ final class OnboardingUITests: XCTestCase {
     }
 
     func testReturningUserWithActiveEntitlementRoutesToMain() {
-        launchResetApp(arguments: ["--mock-entitled"])
+        launchResetApp(arguments: ["--mock-entitled", "--mock-backend-existing-complete"])
 
         tap("welcome.signIn")
         XCTAssertTrue(app.buttons["auth.google"].waitForExistence(timeout: 2))
@@ -50,12 +50,43 @@ final class OnboardingUITests: XCTestCase {
     }
 
     func testReturningUserWithoutEntitlementRoutesToHardPaywall() {
-        launchResetApp()
+        launchResetApp(arguments: ["--mock-backend-existing-complete"])
 
         tap("welcome.signIn")
         tap("auth.apple")
 
         assertHardPaywall()
+    }
+
+    func testCreatedIncompleteReturningAccountStaysOnScreen13AndCanStartOnboarding() {
+        launchResetApp()
+
+        tap("welcome.signIn")
+        tap("auth.apple")
+
+        let notice = element("returning.incompleteNotice")
+        XCTAssertTrue(notice.waitForExistence(timeout: 3))
+        assertHeading("Welcome back")
+        XCTAssertTrue(
+            notice.label.contains(
+                "This account hasn't completed onboarding yet. Start onboarding to create your first look."
+            )
+        )
+
+        tap("returning.startOnboarding")
+        assertHeading("See who you could be.")
+        XCTAssertTrue(app.buttons["welcome.discover"].exists)
+    }
+
+    func testExistingIncompleteReturningAccountContinuesAtScreen6() {
+        launchResetApp(arguments: ["--mock-backend-existing-incomplete"])
+
+        tap("welcome.signIn")
+        tap("auth.google")
+
+        XCTAssertTrue(app.buttons["photo.skipHarmony"].waitForExistence(timeout: 3))
+        assertHeading("Let's find what works with your features.")
+        XCTAssertFalse(element("returning.incompleteNotice").exists)
     }
 
     func testWelcomeRoutingSurvivesBackgroundAndReturn() {
@@ -134,9 +165,14 @@ final class OnboardingUITests: XCTestCase {
         assertHeading("Continue to your free harmony check")
     }
 
-    func testAuthenticatedPaywallGateLaunchesDirectly() {
+    func testAuthenticatedCompletedBackendLaunchesDirectlyToPaywall() {
         launchApp(
-            arguments: ["--mock-services", "--reset-onboarding", "--mock-authenticated", "--mock-gate=paywall"],
+            arguments: [
+                "--mock-services",
+                "--reset-onboarding",
+                "--mock-authenticated",
+                "--mock-backend-existing-complete"
+            ],
             expectedIdentifier: "paywall.purchase"
         )
 
@@ -150,8 +186,68 @@ final class OnboardingUITests: XCTestCase {
         )
 
         assertHeading("Meet more versions of you")
-        assertNoAppOwnedPaywallDismissal()
+        assertNoCommonDismissalControls()
         XCTAssertTrue(element("paywall.production.fixture").exists)
+    }
+
+    func testPostOnboardingAccessProgressHasNoDismissal() {
+        launchApp(
+            arguments: [
+                "--mock-services",
+                "--reset-onboarding",
+                "--ui-test-presentation=access-pending-progress"
+            ],
+            expectedIdentifier: "access.progress"
+        )
+
+        assertHeading("Checking your access")
+        XCTAssertTrue(element("access.pending").exists)
+        assertNoCommonDismissalControls()
+    }
+
+    func testPlaceholderLegalActionReportsUnavailable() {
+        launchApp(
+            arguments: ["--mock-services", "--reset-onboarding", "--ui-test-presentation=05"],
+            expectedIdentifier: "legal.terms"
+        )
+
+        tap("legal.terms")
+
+        let alert = app.alerts["Unavailable in this build"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            alert.staticTexts[
+                "The final legal document will be available when production configuration is supplied."
+            ].exists
+        )
+        XCTAssertTrue(alert.buttons["OK"].exists)
+    }
+
+    func testAccessFailureShowsStableRetryWithoutDismissal() {
+        launchResetApp(arguments: ["--mock-access-failure"])
+        advanceEmptyQuestionnairesToPhotoPreparation()
+
+        tap("photo.skipHarmony")
+
+        XCTAssertTrue(element("error.panel").waitForExistence(timeout: 3))
+        assertHeading("Checking your access")
+        XCTAssertTrue(element("access.pending").exists)
+        XCTAssertEqual(app.buttons["error.retry"].label, "Try again")
+        XCTAssertTrue(app.staticTexts["We couldn't verify access. Try again."].exists)
+        assertNoCommonDismissalControls()
+    }
+
+    func testAccessFailureRetryRepeatsOnlyAccessAndReachesPaywall() {
+        launchResetApp(arguments: ["--mock-access-fail-once"])
+        advanceEmptyQuestionnairesToPhotoPreparation()
+
+        tap("photo.skipHarmony")
+        XCTAssertTrue(element("access.pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["error.retry"].exists)
+        assertNoCommonDismissalControls()
+
+        tap("error.retry")
+        assertHardPaywall()
     }
 
     func testFixturePhotoCompletesPreviewAndPurchaseFlow() {
@@ -189,7 +285,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(element("main.skeleton").waitForExistence(timeout: 5))
     }
 
-    func testHarmonySkipPersistsPaywallGate() {
+    func testHarmonyCompletionPersistsPaywallAcrossRelaunch() {
         launchResetApp(arguments: ["--mock-photo-fixture"])
         advanceEmptyQuestionnairesToPhotoPreparation()
         advanceFixturePhotoToHarmony()
@@ -224,6 +320,88 @@ final class OnboardingUITests: XCTestCase {
 
         tap("error.retry", timeout: 6)
         XCTAssertTrue(app.buttons["harmony.showStyle"].waitForExistence(timeout: 6))
+    }
+
+    func testCompletionFailureRetainsHarmonyScreenAndRetrySucceeds() {
+        launchResetApp(arguments: [
+            "--mock-photo-fixture", "--mock-completion-fail-once", "--mock-access-fail-once"
+        ])
+        advanceEmptyQuestionnairesToPhotoPreparation()
+        advanceFixturePhotoToHarmony()
+
+        tap("harmony.skipLook")
+
+        XCTAssertTrue(element("error.panel").waitForExistence(timeout: 3))
+        assertHeading("Here's what works in harmony")
+        XCTAssertTrue(app.buttons["harmony.showStyle"].exists)
+        XCTAssertFalse(element("access.pending").exists)
+        XCTAssertFalse(app.buttons["paywall.purchase"].exists)
+
+        let retry = app.buttons["error.retry"]
+        for _ in 0..<3 where retry.isHittable == false {
+            app.swipeUp()
+        }
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(element("access.pending").waitForExistence(timeout: 3))
+        tap("error.retry")
+        assertHardPaywall()
+    }
+
+    func testCompletionFailureRetainsPhotoPreparationAndRetrySucceeds() {
+        launchResetApp(arguments: [
+            "--mock-photo-fixture", "--mock-completion-fail-once", "--mock-access-fail-once"
+        ])
+        advanceEmptyQuestionnairesToPhotoPreparation()
+
+        tap("photo.skipHarmony")
+
+        XCTAssertTrue(element("error.panel").waitForExistence(timeout: 3))
+        assertHeading("Let's find what works with your features.")
+        XCTAssertTrue(app.buttons["photo.camera"].exists)
+        XCTAssertTrue(app.buttons["photo.library"].exists)
+        XCTAssertTrue(app.buttons["photo.fixture"].exists)
+        XCTAssertFalse(element("access.pending").exists)
+        XCTAssertFalse(app.buttons["paywall.purchase"].exists)
+
+        let retry = app.buttons["error.retry"]
+        for _ in 0..<3 where retry.isHittable == false {
+            app.swipeUp()
+        }
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(element("access.pending").waitForExistence(timeout: 3))
+        tap("error.retry")
+        assertHardPaywall()
+    }
+
+    func testCompletionFailureRetainsFirstResultAndRetrySucceeds() {
+        launchResetApp(arguments: [
+            "--mock-photo-fixture", "--mock-completion-fail-once", "--mock-access-fail-once"
+        ])
+        advanceEmptyQuestionnairesToPhotoPreparation()
+        advanceFixturePhotoToHarmony()
+        tap("harmony.showStyle")
+        XCTAssertTrue(element("result.comparison").waitForExistence(timeout: 6))
+
+        tap("result.tryMore")
+
+        XCTAssertTrue(element("error.panel").waitForExistence(timeout: 3))
+        assertHeading("Not you yet - but should it be?")
+        XCTAssertTrue(element("result.comparison").exists)
+        XCTAssertTrue(app.sliders["result.slider"].exists)
+        XCTAssertFalse(element("access.pending").exists)
+        XCTAssertFalse(app.buttons["paywall.purchase"].exists)
+
+        let retry = app.buttons["error.retry"]
+        for _ in 0..<6 where retry.isHittable == false {
+            app.swipeUp()
+        }
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(element("access.pending").waitForExistence(timeout: 3))
+        tap("error.retry")
+        assertHardPaywall()
     }
 
     func testGenerationFailureRetriesSuccessfully() {
@@ -319,19 +497,19 @@ final class OnboardingUITests: XCTestCase {
         assertHeading("Meet more versions of you")
         XCTAssertEqual(app.buttons["paywall.purchase"].label, "Unlock more looks")
         XCTAssertEqual(app.buttons["paywall.restore"].label, "Restore purchases")
-        assertNoAppOwnedPaywallDismissal()
+        assertNoCommonDismissalControls()
         XCTAssertTrue(app.buttons["paywall.restore"].exists)
     }
 
-    private func assertNoAppOwnedPaywallDismissal() {
+    private func assertNoCommonDismissalControls() {
         XCTAssertFalse(app.buttons["navigation.back"].exists)
-        for label in ["Back", "Close", "Dismiss", "Not now"] {
-            XCTAssertFalse(app.buttons[label].exists, "Unexpected paywall dismissal control: \(label)")
+        for label in ["Back", "Close", "Dismiss", "Cancel", "Done", "Not now"] {
+            XCTAssertFalse(app.buttons[label].exists, "Unexpected dismissal control: \(label)")
         }
         XCTAssertFalse(app.sheets.firstMatch.exists)
     }
 
-    private func assertHeading(_ expectedLabel: String, timeout: TimeInterval = 2) {
+    private func assertHeading(_ expectedLabel: String, timeout: TimeInterval = 3) {
         let heading = element("screen.heading")
         let predicate = NSPredicate { object, _ in
             guard let heading = object as? XCUIElement else { return false }

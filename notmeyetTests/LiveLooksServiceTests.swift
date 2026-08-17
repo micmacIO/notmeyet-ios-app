@@ -742,7 +742,8 @@ struct LiveLooksServiceTests {
             looksAPIBaseURL: baseURL,
             termsURL: URL(string: "https://example.com/terms"),
             privacyURL: URL(string: "https://example.com/privacy"),
-            facialDataDisclosuresApproved: disclosuresApproved
+            facialDataDisclosuresApproved: disclosuresApproved,
+            backendUserLifecycleContractConfirmed: true
         )
     }
 

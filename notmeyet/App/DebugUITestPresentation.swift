@@ -8,16 +8,23 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
     case screen03 = "03"
     case screen04 = "04"
     case screen05 = "05"
+    case screen05BackendResolving = "05-backend-resolving"
     case screen06 = "06"
+    case screen06CompletionProgress = "06-completion-progress"
     case screen07 = "07"
     case screen08Loading = "08-loading"
     case screen08Error = "08-error"
     case screen09 = "09"
+    case screen09CompletionProgress = "09-completion-progress"
     case screen10Loading = "10-loading"
     case screen10Error = "10-error"
     case screen11Success = "11-success"
+    case screen11CompletionProgress = "11-completion-progress"
     case screen12Mock = "12-mock"
     case screen13 = "13"
+    case screen13CreatedIncomplete = "13-created-incomplete"
+    case accessPendingProgress = "access-pending-progress"
+    case accessFailure = "access-failure"
     case main
     case screen12ProductionShell = "12-production-shell"
 
@@ -50,9 +57,15 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
         model.analysisCanRetry = true
         model.generationCanRetry = true
         model.authenticationError = nil
+        model.completionError = nil
+        model.accessError = nil
+        model.returningAccountNotice = nil
         model.purchaseError = nil
         model.photoError = nil
         model.isAuthenticating = false
+        model.isResolvingAccount = false
+        model.isCompletingOnboarding = false
+        model.isVerifyingAccess = false
         model.isPurchasing = false
         model.comparisonSplit = 0.46
         model.debugUsesProductionPaywallShell = self == .screen12ProductionShell
@@ -69,8 +82,14 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
             model.phase = .onboarding(.direction)
         case .screen05:
             model.phase = .onboarding(.account)
+        case .screen05BackendResolving:
+            model.phase = .onboarding(.account)
+            model.isResolvingAccount = true
         case .screen06:
             model.phase = .onboarding(.photoPreparation)
+        case .screen06CompletionProgress:
+            model.phase = .onboarding(.photoPreparation)
+            model.isCompletingOnboarding = true
         case .screen07:
             guard seedPreparedPhoto(in: model) else { return }
             model.phase = .onboarding(.photoReview)
@@ -87,6 +106,10 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
             model.draft.harmonyResult = .mock
             model.analysisPhase = .loaded(.mock)
             model.phase = .onboarding(.harmonySnapshot)
+        case .screen09CompletionProgress:
+            guard seedHarmony(in: model) else { return }
+            model.phase = .onboarding(.harmonySnapshot)
+            model.isCompletingOnboarding = true
         case .screen10Loading:
             guard seedHarmony(in: model) else { return }
             model.generationPhase = .loading
@@ -98,10 +121,23 @@ enum DebugUITestPresentation: String, CaseIterable, Sendable {
         case .screen11Success:
             guard seedGeneratedLook(in: model) else { return }
             model.phase = .onboarding(.firstResult)
+        case .screen11CompletionProgress:
+            guard seedGeneratedLook(in: model) else { return }
+            model.phase = .onboarding(.firstResult)
+            model.isCompletingOnboarding = true
         case .screen12Mock, .screen12ProductionShell:
             model.phase = .onboarding(.paywall)
         case .screen13:
             model.phase = .onboarding(.returningSignIn)
+        case .screen13CreatedIncomplete:
+            model.phase = .onboarding(.returningSignIn)
+            model.returningAccountNotice = "This account hasn't completed onboarding yet. Start onboarding to create your first look."
+        case .accessPendingProgress:
+            model.phase = .postOnboardingAccess
+            model.isVerifyingAccess = true
+        case .accessFailure:
+            model.phase = .postOnboardingAccess
+            model.accessError = "We couldn't verify access. Try again."
         case .main:
             model.phase = .main
         }

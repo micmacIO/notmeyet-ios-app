@@ -25,6 +25,7 @@ struct HarmonySnapshotScreen: View {
             step: .harmonySnapshot,
             trailingNavigationTitle: "Skip look",
             trailingNavigationIdentifier: "harmony.skipLook",
+            trailingNavigationDisabled: model.isCompletingOnboarding,
             trailingNavigationAction: model.skipLook,
             pinsActions: false
         ) {
@@ -64,9 +65,12 @@ struct HarmonySnapshotScreen: View {
                 .foregroundStyle(NMYDesign.muted)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 12)
+
+            completionStatus(model)
         } actions: {
             Button("Show me a matching hairstyle") { model.showMatchingStyle() }
                 .buttonStyle(.nmyPrimary)
+                .disabled(model.isCompletingOnboarding)
                 .accessibilityIdentifier("harmony.showStyle")
         }
     }
@@ -138,12 +142,32 @@ struct FirstResultScreen: View {
                 }
                 .padding(.top, 14)
             }
+
+            completionStatus(model)
         } actions: {
-            Button("Try more") { model.tryMore() }
+            Button("Try more") {
+                model.tryMore()
+            }
                 .buttonStyle(.nmyPrimary)
-                .disabled(model.draft.generatedLook == nil)
+                .disabled(model.draft.generatedLook == nil || model.isCompletingOnboarding)
                 .accessibilityIdentifier("result.tryMore")
         }
+    }
+}
+
+@ViewBuilder
+private func completionStatus(_ model: OnboardingFlowModel) -> some View {
+    if let error = model.completionError {
+        NMYErrorPanel(message: error, retryTitle: "Try again") {
+            model.retryOnboardingCompletion()
+        }
+        .padding(.top, 14)
+    } else if model.isCompletingOnboarding {
+        ProgressView("Finishing your account setup...")
+            .font(NMYDesign.Typography.detail)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 14)
+            .accessibilityIdentifier("completion.progress")
     }
 }
 
@@ -284,13 +308,6 @@ private struct BeforeAfterComparison: View {
                         .position(x: geometry.size.width * model.comparisonSplit, y: geometry.size.height * 0.52)
                         .allowsHitTesting(false)
                 }
-                .contentShape(.rect)
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            model.setComparisonSplit(value.location.x / max(geometry.size.width, 1))
-                        }
-                )
             }
             .aspectRatio(353 / 380, contentMode: .fit)
             .clipShape(.rect(cornerRadius: 27))

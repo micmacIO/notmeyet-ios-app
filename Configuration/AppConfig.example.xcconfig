@@ -8,6 +8,7 @@ NMY_LOOKS_API_BASE_URL = https://api.micmac.io
 NMY_TERMS_URL =
 NMY_PRIVACY_URL =
 NMY_FACIAL_DATA_DISCLOSURES_APPROVED = NO
+NMY_BACKEND_USER_LIFECYCLE_CONTRACT_CONFIRMED = NO
 
 // Register NMY_GOOGLE_REVERSED_CLIENT_ID in the app target's URL Types when
 // the real GoogleService-Info.plist is supplied.

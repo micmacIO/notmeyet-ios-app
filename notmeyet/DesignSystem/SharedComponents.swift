@@ -9,6 +9,7 @@ struct OnboardingPage<Content: View, Actions: View>: View {
     let navigationTitle: String?
     let trailingNavigationTitle: String?
     let trailingNavigationIdentifier: String?
+    let trailingNavigationDisabled: Bool
     let trailingNavigationAction: () -> Void
     let pinsActions: Bool
     let content: Content
@@ -21,6 +22,7 @@ struct OnboardingPage<Content: View, Actions: View>: View {
         navigationTitle: String? = nil,
         trailingNavigationTitle: String? = nil,
         trailingNavigationIdentifier: String? = nil,
+        trailingNavigationDisabled: Bool = false,
         trailingNavigationAction: @escaping () -> Void = {},
         pinsActions: Bool = true,
         @ViewBuilder content: () -> Content,
@@ -32,6 +34,7 @@ struct OnboardingPage<Content: View, Actions: View>: View {
         self.navigationTitle = navigationTitle
         self.trailingNavigationTitle = trailingNavigationTitle
         self.trailingNavigationIdentifier = trailingNavigationIdentifier
+        self.trailingNavigationDisabled = trailingNavigationDisabled
         self.trailingNavigationAction = trailingNavigationAction
         self.pinsActions = pinsActions
         self.content = content()
@@ -110,6 +113,7 @@ struct OnboardingPage<Content: View, Actions: View>: View {
                             .frame(minHeight: NMYDesign.minimumTarget)
                             .contentShape(.rect)
                     }
+                    .disabled(trailingNavigationDisabled)
                     .accessibilityIdentifier(trailingNavigationIdentifier ?? "navigation.trailing")
                 } else {
                     Color.clear.frame(width: NMYDesign.minimumTarget, height: NMYDesign.minimumTarget)
@@ -167,7 +171,7 @@ struct ScreenHeading: View {
                 Text(eyebrow.uppercased())
                     .font(NMYDesign.Typography.eyebrow)
                     .tracking(1.2)
-                    .foregroundStyle(NMYDesign.accent)
+                    .foregroundStyle(contrast == .increased ? NMYDesign.foreground : NMYDesign.accentText)
                     .accessibilityHidden(true)
             }
             Text(title)
@@ -329,7 +333,7 @@ struct NMYErrorPanel: View {
                     .accessibilityIdentifier("error.retry")
             }
         }
-        .foregroundStyle(contrast == .increased ? NMYDesign.foreground : NMYDesign.danger)
+        .foregroundStyle(contrast == .increased ? NMYDesign.foreground : NMYDesign.dangerText)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(contrast == .increased ? NMYDesign.surface : NMYDesign.danger.opacity(0.07))

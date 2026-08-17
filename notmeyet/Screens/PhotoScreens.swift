@@ -17,6 +17,7 @@ struct PhotoPreparationScreen: View {
             step: .photoPreparation,
             trailingNavigationTitle: "Skip harmony check",
             trailingNavigationIdentifier: "photo.skipHarmony",
+            trailingNavigationDisabled: model.isCompletingOnboarding,
             trailingNavigationAction: model.skipHarmonyCheck,
             pinsActions: false
         ) {
@@ -25,6 +26,21 @@ struct PhotoPreparationScreen: View {
                 subtitle: "Start with a clear, front-facing photo. Better input creates a more realistic preview."
             )
             .padding(.bottom, 18)
+
+            if let error = model.completionError {
+                NMYErrorPanel(message: error, retryTitle: "Try again") {
+                    model.retryOnboardingCompletion()
+                }
+                .padding(.bottom, 14)
+            }
+
+            if model.isCompletingOnboarding {
+                ProgressView("Finishing your account setup...")
+                    .font(NMYDesign.Typography.detail)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 14)
+                    .accessibilityIdentifier("completion.progress")
+            }
 
             PhotoGuideView()
 
@@ -54,10 +70,13 @@ struct PhotoPreparationScreen: View {
                     .accessibilityIdentifier("camera.openSettings")
                 }
             }
+
+
         } actions: {
             VStack(spacing: 10) {
                 Button("Take my front photo") { requestCamera() }
                     .buttonStyle(.nmyPrimary)
+                    .disabled(model.isCompletingOnboarding)
                     .accessibilityIdentifier("photo.camera")
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
@@ -75,6 +94,7 @@ struct PhotoPreparationScreen: View {
                         }
                         .clipShape(.rect(cornerRadius: NMYDesign.largeRadius))
                 }
+                .disabled(model.isCompletingOnboarding)
                 .accessibilityIdentifier("photo.library")
 
                 #if DEBUG
@@ -82,6 +102,7 @@ struct PhotoPreparationScreen: View {
                    ProcessInfo.processInfo.arguments.contains("--mock-photo-fixture") {
                     Button("Use sample photo") { loadFixturePhoto() }
                         .buttonStyle(.nmySecondary)
+                        .disabled(model.isCompletingOnboarding)
                         .accessibilityIdentifier("photo.fixture")
                 }
                 #endif

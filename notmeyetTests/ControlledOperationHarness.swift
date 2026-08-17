@@ -2,26 +2,167 @@ import Foundation
 @testable import notmeyet
 
 @MainActor
+final class ControlledOperationLog {
+    private(set) var events: [String] = []
+
+    func record(_ event: String) {
+        events.append(event)
+    }
+}
+
+@MainActor
+final class ControlledBackendUserHarness {
+    private(set) var resolutionRequestCount = 0
+    private(set) var completionRequestCount = 0
+    private(set) var cancelledResolutionRequests: Set<Int> = []
+    private(set) var cancelledCompletionRequests: Set<Int> = []
+
+    private let log: ControlledOperationLog
+    private var resolutionContinuations: [Int: CheckedContinuation<BackendUserResolution, Error>] = [:]
+    private var completionContinuations: [Int: CheckedContinuation<Void, Error>] = [:]
+    private var resolutionWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var completionWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+
+    init(log: ControlledOperationLog? = nil) {
+        self.log = log ?? ControlledOperationLog()
+    }
+
+    func client() -> BackendUserClient {
+        BackendUserClient(
+            resolveCurrentUser: { [self] in try await beginResolution() },
+            completeOnboarding: { [self] in try await beginCompletion() }
+        )
+    }
+
+    func waitForResolutionRequests(_ count: Int) async {
+        guard resolutionRequestCount < count else { return }
+        await withCheckedContinuation { resolutionWaiters[count, default: []].append($0) }
+    }
+
+    func waitForCompletionRequests(_ count: Int) async {
+        guard completionRequestCount < count else { return }
+        await withCheckedContinuation { completionWaiters[count, default: []].append($0) }
+    }
+
+    func succeedResolutionRequest(_ index: Int, with resolution: BackendUserResolution) {
+        resolutionContinuations.removeValue(forKey: index)?.resume(returning: resolution)
+    }
+
+    func failResolutionRequest(_ index: Int, with error: Error) {
+        resolutionContinuations.removeValue(forKey: index)?.resume(throwing: error)
+    }
+
+    func succeedCompletionRequest(_ index: Int) {
+        completionContinuations.removeValue(forKey: index)?.resume()
+    }
+
+    func failCompletionRequest(_ index: Int, with error: Error) {
+        completionContinuations.removeValue(forKey: index)?.resume(throwing: error)
+    }
+
+    func cancelOutstandingRequests() {
+        resolutionContinuations.values.forEach { $0.resume(throwing: CancellationError()) }
+        completionContinuations.values.forEach { $0.resume(throwing: CancellationError()) }
+        resolutionContinuations.removeAll()
+        completionContinuations.removeAll()
+    }
+
+    private func beginResolution() async throws -> BackendUserResolution {
+        let index = resolutionRequestCount
+        resolutionRequestCount += 1
+        log.record("resolveCurrentUser")
+        resumeWaiters(&resolutionWaiters, completedCount: resolutionRequestCount)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { resolutionContinuations[index] = $0 }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.cancelledResolutionRequests.insert(index)
+            }
+        }
+    }
+
+    private func beginCompletion() async throws {
+        let index = completionRequestCount
+        completionRequestCount += 1
+        log.record("completeOnboarding")
+        resumeWaiters(&completionWaiters, completedCount: completionRequestCount)
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { completionContinuations[index] = $0 }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.cancelledCompletionRequests.insert(index)
+            }
+        }
+    }
+
+    private func resumeWaiters(
+        _ waiters: inout [Int: [CheckedContinuation<Void, Never>]],
+        completedCount: Int
+    ) {
+        for count in waiters.keys.filter({ $0 <= completedCount }) {
+            waiters.removeValue(forKey: count)?.forEach { $0.resume() }
+        }
+    }
+}
+
+@MainActor
 final class ControlledPurchaseHarness {
     var accessStatus: AccessStatus = .inactive
+    var purchaseStatus: AccessStatus = .active
+    var restoreStatus: AccessStatus = .active
     private(set) var bindingRequests: [String] = []
+    private(set) var accessRequestCount = 0
+    private(set) var purchaseRequestCount = 0
+    private(set) var restoreRequestCount = 0
+    private(set) var accessMonitoringRequestCount = 0
+    private(set) var cancelledBindingRequests: Set<Int> = []
+    private(set) var cancelledAccessRequests: Set<Int> = []
 
+    private let log: ControlledOperationLog
     private var bindingContinuations: [Int: CheckedContinuation<Void, Error>] = [:]
+    private var accessContinuations: [Int: CheckedContinuation<AccessStatus, Error>] = [:]
     private var bindingWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var accessWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var accessContinuation: AsyncStream<AccessStatus>.Continuation?
+
+    init(log: ControlledOperationLog? = nil) {
+        self.log = log ?? ControlledOperationLog()
+    }
 
     func client() -> PurchaseClient {
         PurchaseClient(
             bindUser: { [self] userID in try await beginBinding(userID) },
-            currentAccess: { [self] in accessStatus },
-            purchase: { [self] in accessStatus },
-            restore: { [self] in accessStatus },
-            accessUpdates: { AsyncStream { $0.finish() } }
+            currentAccess: { [self] in try await beginAccessEvaluation() },
+            purchase: { [self] in
+                purchaseRequestCount += 1
+                log.record("purchase")
+                accessStatus = purchaseStatus
+                accessContinuation?.yield(purchaseStatus)
+                return purchaseStatus
+            },
+            restore: { [self] in
+                restoreRequestCount += 1
+                log.record("restore")
+                accessStatus = restoreStatus
+                accessContinuation?.yield(restoreStatus)
+                return restoreStatus
+            },
+            accessUpdates: { [self] in
+                accessMonitoringRequestCount += 1
+                log.record("accessUpdates")
+                return AsyncStream { accessContinuation = $0 }
+            }
         )
     }
 
     func waitForBindingRequests(_ count: Int) async {
         guard bindingRequests.count < count else { return }
         await withCheckedContinuation { bindingWaiters[count, default: []].append($0) }
+    }
+
+    func waitForAccessRequests(_ count: Int) async {
+        guard accessRequestCount < count else { return }
+        await withCheckedContinuation { accessWaiters[count, default: []].append($0) }
     }
 
     func succeedBindingRequest(_ index: Int) {
@@ -32,18 +173,63 @@ final class ControlledPurchaseHarness {
         bindingContinuations.removeValue(forKey: index)?.resume(throwing: error)
     }
 
+    func succeedAccessRequest(_ index: Int, with status: AccessStatus? = nil) {
+        let status = status ?? accessStatus
+        accessStatus = status
+        accessContinuations.removeValue(forKey: index)?.resume(returning: status)
+    }
+
+    func failAccessRequest(_ index: Int, with error: Error) {
+        accessContinuations.removeValue(forKey: index)?.resume(throwing: error)
+    }
+
+    func sendAccessUpdate(_ status: AccessStatus) {
+        accessStatus = status
+        accessContinuation?.yield(status)
+    }
+
     func cancelOutstandingRequests() {
         bindingContinuations.values.forEach { $0.resume(throwing: CancellationError()) }
+        accessContinuations.values.forEach { $0.resume(throwing: CancellationError()) }
         bindingContinuations.removeAll()
+        accessContinuations.removeAll()
     }
 
     private func beginBinding(_ userID: String) async throws {
         let index = bindingRequests.count
         bindingRequests.append(userID)
-        for count in bindingWaiters.keys.filter({ $0 <= bindingRequests.count }) {
-            bindingWaiters.removeValue(forKey: count)?.forEach { $0.resume() }
+        log.record("bind:\(userID)")
+        resumeWaiters(&bindingWaiters, completedCount: bindingRequests.count)
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { bindingContinuations[index] = $0 }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.cancelledBindingRequests.insert(index)
+            }
         }
-        try await withCheckedThrowingContinuation { bindingContinuations[index] = $0 }
+    }
+
+    private func beginAccessEvaluation() async throws -> AccessStatus {
+        let index = accessRequestCount
+        accessRequestCount += 1
+        log.record("currentAccess")
+        resumeWaiters(&accessWaiters, completedCount: accessRequestCount)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { accessContinuations[index] = $0 }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.cancelledAccessRequests.insert(index)
+            }
+        }
+    }
+
+    private func resumeWaiters(
+        _ waiters: inout [Int: [CheckedContinuation<Void, Never>]],
+        completedCount: Int
+    ) {
+        for count in waiters.keys.filter({ $0 <= completedCount }) {
+            waiters.removeValue(forKey: count)?.forEach { $0.resume() }
+        }
     }
 }
 
