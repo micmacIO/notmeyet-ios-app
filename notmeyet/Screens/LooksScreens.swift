@@ -36,8 +36,7 @@ struct HarmonySnapshotScreen: View {
                let image = UIImage(data: result.annotatedImageData) {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFit()
-                    .frame(height: 260)
+                    .aspectRatio(image.size, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     .clipShape(.rect(cornerRadius: 22))
                     .accessibilityLabel("Annotated facial harmony image")
@@ -281,11 +280,11 @@ private struct BeforeAfterComparison: View {
         VStack(spacing: 8) {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    comparisonImage(after)
+                    comparisonImage(after, in: geometry.size)
                         .saturation(1.12)
                         .contrast(1.06)
 
-                    comparisonImage(before)
+                    comparisonImage(before, in: geometry.size)
                         .frame(width: geometry.size.width * model.comparisonSplit, alignment: .leading)
                         .clipped()
                         .overlay(alignment: .trailing) {
@@ -328,7 +327,7 @@ private struct BeforeAfterComparison: View {
                         }
                 )
             }
-            .aspectRatio(353 / 380, contentMode: .fit)
+            .aspectRatio(before.size, contentMode: .fit)
             .clipShape(.rect(cornerRadius: 27))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Before and after hairstyle comparison")
@@ -352,11 +351,16 @@ private struct BeforeAfterComparison: View {
         model.setComparisonSplit(x / width)
     }
 
-    private func comparisonImage(_ image: UIImage) -> some View {
+    /// Fits `image` into the comparison rectangle at its full extent.
+    ///
+    /// The explicit container-sized frame matters: the before layer is narrowed
+    /// to the split width, and without a fixed size here that narrowing would
+    /// shrink the image instead of clipping it.
+    private func comparisonImage(_ image: UIImage, in size: CGSize) -> some View {
         Image(uiImage: image)
             .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaledToFit()
+            .frame(width: size.width, height: size.height)
     }
 
     private func comparisonLabel(_ title: String) -> some View {

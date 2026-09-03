@@ -175,63 +175,58 @@ struct PhotoReviewScreen: View {
     let model: OnboardingFlowModel
 
     var body: some View {
-        GeometryReader { geometry in
-            OnboardingPage(
-                step: .photoReview,
-                showsBack: true,
-                back: model.goBack,
-                navigationTitle: "Front photo"
-            ) {
-                if let image = model.draft.preparedPhoto.flatMap({ UIImage(data: $0.displayData) }) {
-                    ZStack(alignment: .bottom) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: reviewImageHeight(in: geometry.size.height))
-                            .clipShape(.rect(cornerRadius: 28))
+        OnboardingPage(
+            step: .photoReview,
+            showsBack: true,
+            back: model.goBack,
+            navigationTitle: "Front photo"
+        ) {
+            if let image = model.draft.preparedPhoto.flatMap({ UIImage(data: $0.displayData) }) {
+                ZStack(alignment: .bottom) {
+                    // The rectangle takes the photo's own proportions, so the
+                    // whole photo is visible without bars beside it.
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(image.size, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(.rect(cornerRadius: 28))
 
-                        Text("Ready to review")
-                            .font(NMYDesign.Typography.detail.bold())
-                            .foregroundStyle(NMYDesign.Accessibility.successColor(for: contrast))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .nmyAdaptiveSurface(.white, opacity: 0.9)
-                            .clipShape(.capsule)
-                            .padding(.bottom, 16)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Your selected front photo. Ready to review.")
-                    .accessibilityAddTraits(.isImage)
-                    .accessibilitySortPriority(2)
-                    .accessibilityIdentifier("photo.review.image")
+                    Text("Ready to review")
+                        .font(NMYDesign.Typography.detail.bold())
+                        .foregroundStyle(NMYDesign.Accessibility.successColor(for: contrast))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .nmyAdaptiveSurface(.white, opacity: 0.9)
+                        .clipShape(.capsule)
+                        .padding(.bottom, 16)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Your selected front photo. Ready to review.")
+                .accessibilityAddTraits(.isImage)
+                .accessibilitySortPriority(2)
+                .accessibilityIdentifier("photo.review.image")
+            }
 
-                Text("Use this photo?")
-                    .font(NMYDesign.Typography.cardTitle)
-                    .padding(.top, 18)
-                    .accessibilitySortPriority(3)
-                    .nmyRouteHeading(id: "photo-review")
-                Text("Check that your face is visible, centered, and evenly lit. Photo quality has not been automatically validated.")
-                    .font(NMYDesign.Typography.supporting)
-                    .foregroundStyle(NMYDesign.muted)
-                    .padding(.top, 6)
-                    .accessibilitySortPriority(1)
-            } actions: {
-                VStack(spacing: 10) {
-                    Button("Use this photo") { model.usePhoto() }
-                        .buttonStyle(.nmyPrimary)
-                        .accessibilityIdentifier("photo.use")
-                    Button("Retake") { model.retakePhoto() }
-                        .buttonStyle(.nmySecondary)
-                        .accessibilityIdentifier("photo.retake")
-                }
+            Text("Use this photo?")
+                .font(NMYDesign.Typography.cardTitle)
+                .padding(.top, 18)
+                .accessibilitySortPriority(3)
+                .nmyRouteHeading(id: "photo-review")
+            Text("Check that your face is visible, centered, and evenly lit. Photo quality has not been automatically validated.")
+                .font(NMYDesign.Typography.supporting)
+                .foregroundStyle(NMYDesign.muted)
+                .padding(.top, 6)
+                .accessibilitySortPriority(1)
+        } actions: {
+            VStack(spacing: 10) {
+                Button("Use this photo") { model.usePhoto() }
+                    .buttonStyle(.nmyPrimary)
+                    .accessibilityIdentifier("photo.use")
+                Button("Retake") { model.retakePhoto() }
+                    .buttonStyle(.nmySecondary)
+                    .accessibilityIdentifier("photo.retake")
             }
         }
-    }
-
-    private func reviewImageHeight(in availableHeight: CGFloat) -> CGFloat {
-        min(450, max(340, availableHeight * 0.48))
     }
 }
 
