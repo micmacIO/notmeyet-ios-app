@@ -119,7 +119,7 @@ struct PhotoPreparationScreen: View {
         }
         .onChange(of: selectedPhoto) { _, item in load(item) }
         .fullScreenCover(isPresented: $showsCamera) {
-            CameraPicker { data in
+            CameraCaptureView { data in
                 showsCamera = false
                 Task { await model.preparePhoto(data: data) }
             } onCancel: {

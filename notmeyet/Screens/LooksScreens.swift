@@ -284,12 +284,14 @@ private struct BeforeAfterComparison: View {
                     comparisonImage(after)
                         .saturation(1.12)
                         .contrast(1.06)
+
                     comparisonImage(before)
                         .frame(width: geometry.size.width * model.comparisonSplit, alignment: .leading)
                         .clipped()
                         .overlay(alignment: .trailing) {
                             Rectangle().fill(.white).frame(width: 2)
                         }
+
                     HStack {
                         comparisonLabel("Before")
                         Spacer()
@@ -305,9 +307,26 @@ private struct BeforeAfterComparison: View {
                         .background(.white)
                         .clipShape(.circle)
                         .shadow(radius: 6, y: 2)
+                        .contentShape(.circle)
+                        .gesture(
+                            DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.comparisonSpace))
+                                .onChanged { value in
+                                    setSplit(atX: value.location.x, in: geometry.size.width)
+                                }
+                        )
                         .position(x: geometry.size.width * model.comparisonSplit, y: geometry.size.height * 0.52)
-                        .allowsHitTesting(false)
                 }
+                .coordinateSpace(.named(Self.comparisonSpace))
+                .contentShape(.rect)
+                // Dragging the handle adjusts the split; a tap anywhere on the
+                // comparison jumps to that point. Neither starves the enclosing
+                // ScrollView, so the page still scrolls over the image.
+                .simultaneousGesture(
+                    SpatialTapGesture(coordinateSpace: .named(Self.comparisonSpace))
+                        .onEnded { value in
+                            setSplit(atX: value.location.x, in: geometry.size.width)
+                        }
+                )
             }
             .aspectRatio(353 / 380, contentMode: .fit)
             .clipShape(.rect(cornerRadius: 27))
@@ -324,6 +343,13 @@ private struct BeforeAfterComparison: View {
                 .accessibilityValue("\(Int(model.comparisonSplit * 100)) percent before")
                 .accessibilityIdentifier("result.slider")
         }
+    }
+
+    private static let comparisonSpace = "comparison"
+
+    private func setSplit(atX x: CGFloat, in width: CGFloat) {
+        guard width > 0 else { return }
+        model.setComparisonSplit(x / width)
     }
 
     private func comparisonImage(_ image: UIImage) -> some View {

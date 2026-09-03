@@ -184,8 +184,12 @@ Screen 11 SHALL compare the original prepared photo and generated image with a u
 - **THEN** screen 11 presents `displayName` and `description` under `About this look` and ignores `personalizedReason`
 
 #### Scenario: Touch adjustment
-- **WHEN** the user drags or adjusts the comparison control
-- **THEN** the visible split updates continuously within the allowed range
+- **WHEN** the user drags the comparison handle, taps a point on the comparison, or adjusts the split control beneath it
+- **THEN** the visible split updates within the allowed range, continuously while the handle is being dragged
+
+#### Scenario: Scrolling over the comparison
+- **WHEN** the user drags vertically across the comparison
+- **THEN** the page scrolls and the split does not change
 
 #### Scenario: Assistive adjustment
 - **WHEN** VoiceOver, Switch Control, or keyboard input increments or decrements the comparison

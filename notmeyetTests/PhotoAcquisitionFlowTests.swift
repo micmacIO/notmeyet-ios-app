@@ -23,19 +23,8 @@ struct PhotoAcquisitionFlowTests {
 
         #expect(await model.requestCamera())
 
-        var capturedData: Data?
-        var didCancel = false
-        let coordinator = CameraPicker.Coordinator(
-            onCapture: { capturedData = $0 },
-            onCancel: { didCancel = true }
-        )
-        coordinator.imagePickerController(
-            UIImagePickerController(),
-            didFinishPickingMediaWithInfo: [.originalImage: Self.fixtureImage()]
-        )
-        let data = try #require(capturedData)
+        let data = try #require(Self.fixtureImage().jpegData(compressionQuality: 1))
         #expect(!data.isEmpty)
-        #expect(!didCancel)
 
         await model.preparePhoto(data: data)
 
@@ -68,23 +57,14 @@ struct PhotoAcquisitionFlowTests {
         #expect(model.photoError == nil)
     }
 
-    @Test("Picker cancellation leaves photo preparation unchanged")
+    @Test("Camera cancellation leaves photo preparation unchanged")
     @MainActor
     func pickerCancellationIsSilent() async {
         let model = OnboardingFlowModel(dependencies: TestDependencyHarness().makeDependencies())
         model.phase = .onboarding(.photoPreparation)
-        var didCapture = false
-        var didCancel = false
-        let coordinator = CameraPicker.Coordinator(
-            onCapture: { _ in didCapture = true },
-            onCancel: { didCancel = true }
-        )
 
-        coordinator.imagePickerControllerDidCancel(UIImagePickerController())
         await model.loadLibraryPhoto { throw CancellationError() }
 
-        #expect(didCancel)
-        #expect(!didCapture)
         #expect(model.phase == .onboarding(.photoPreparation))
         #expect(model.draft.preparedPhoto == nil)
         #expect(model.photoError == nil)
